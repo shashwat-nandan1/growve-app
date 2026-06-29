@@ -87,7 +87,7 @@ function FriendsPage() {
         <div className="mt-4 space-y-2">
           {results.map((p) => (
             <div key={p.id} className="grove-card flex items-center gap-3 p-3">
-              <Avatar url={p.avatar_url} name={p.username} />
+              <Avatar url={p.avatar_url} name={p.username ?? "?"} />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium text-forest">{p.display_name || p.username}</p>
                 <p className="truncate text-xs text-muted-foreground">@{p.username}</p>
