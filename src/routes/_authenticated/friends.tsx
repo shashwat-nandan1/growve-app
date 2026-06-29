@@ -18,7 +18,7 @@ function FriendsPage() {
   const { user } = useAuth();
   const qc = useQueryClient();
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<Array<{ id: string; username: string; display_name: string | null; avatar_url: string | null }>>([]);
+  const [results, setResults] = useState<Array<{ id: string; username: string | null; display_name: string | null; avatar_url: string | null }>>([]);
 
   const friendships = useQuery({
     queryKey: ["friendships", user?.id],
