@@ -1,0 +1,14 @@
+{
+  "name": "Growve",
+  "short_name": "Growve",
+  "description": "A calm social habit tracker that plants a permanent tree for every habit you tend.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#F4F0E7",
+  "theme_color": "#18392B",
+  "orientation": "portrait",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
