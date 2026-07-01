@@ -1,6 +1,6 @@
 import { Canvas } from "@react-three/fiber";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Trees as TreesIcon, Sparkle } from "lucide-react";
+import { Trees as TreesIcon, Sparkle, List } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useProfile } from "@/hooks/useProfile";
 import { Button } from "@/components/ui/button";
@@ -12,17 +12,30 @@ import { CanopyOverview } from "./scene/CanopyOverview";
 import { ForestWalk } from "./scene/ForestWalk";
 import { WalkControls } from "./ui/Controls";
 import { Plaque } from "./ui/Plaque";
+import { TreeList } from "./ui/TreeList";
 import { Fallback2D } from "./Fallback2D";
 
-export function ForestExperience() {
+type Props = {
+  /** When omitted, shows the signed-in user's own forest. */
+  ownerId?: string;
+  /** Label shown while visiting a friend's forest. */
+  ownerLabel?: string;
+  /** When true, hides the "Enter forest" button and walk mode. */
+  previewOnly?: boolean;
+};
+
+export function ForestExperience({ ownerId, ownerLabel, previewOnly }: Props = {}) {
   const { user } = useAuth();
   const profile = useProfile();
-  const forest = useForestData(user?.id, profile.data?.forest_seed ?? undefined);
+  const targetOwner = ownerId ?? user?.id;
+  const isVisitor = !!ownerId && ownerId !== user?.id;
+  const forest = useForestData(targetOwner);
 
   const userReduced = !!profile.data?.reduced_motion;
   const userSound = profile.data?.sound_enabled ?? true;
   const reducedMotion = userReduced || prefersReducedMotion();
   const webglOk = useMemo(() => hasWebGL(), []);
+  const [showList, setShowList] = useState(false);
 
   const mode = useForestStore((s) => s.mode);
   const setMode = useForestStore((s) => s.setMode);
@@ -33,7 +46,6 @@ export function ForestExperience() {
   const quality = useMemo(() => resolveQuality(qualityMode), [qualityMode]);
   const dpr = dprCap(quality);
 
-  // Drive Howler from store + profile preferences.
   useEffect(() => {
     if (!userSound) { forestAudio.setMuted(true); return; }
     forestAudio.setMuted(!soundOn);
@@ -43,29 +55,79 @@ export function ForestExperience() {
     return () => { forestAudio.dispose(); useForestStore.getState().setMode("overview"); };
   }, []);
 
+  // Reset selection & mode when switching owners
+  useEffect(() => {
+    useForestStore.getState().setMode("overview");
+    useForestStore.getState().setSelected(null);
+  }, [targetOwner]);
+
   const recentTree = useMemo(() => {
     const list = forest.data?.trees ?? [];
     return list.length ? list[list.length - 1] : null;
   }, [forest.data]);
 
-  // Decide whether to use 3D at all
-  const tooManyTrees = (forest.data?.trees.length ?? 0) > 4000;
-  const use3D = webglOk && !tooManyTrees;
-
   if (forest.isLoading || profile.isLoading) {
-    return <div className="grid h-[360px] place-items-center"><div className="h-2 w-24 animate-pulse rounded-full bg-sage/40" /></div>;
-  }
-
-  if (!use3D) {
     return (
-      <Fallback2D
-        trees={forest.data?.trees ?? []}
-        reason={!webglOk ? "3D is unavailable on this device — showing the grove view." : "Forest is large — showing the grove view."}
-      />
+      <div className="grid h-[360px] place-items-center rounded-3xl border border-border bg-mist">
+        <div className="text-center">
+          <div className="mx-auto h-2 w-24 animate-pulse rounded-full bg-sage/60" />
+          {ownerLabel && (
+            <p className="mt-3 text-xs text-muted-foreground">Wandering into {ownerLabel}'s forest…</p>
+          )}
+        </div>
+      </div>
     );
   }
 
-  // Overview embedded card
+  if (forest.error) {
+    const code = (forest.error as Error & { code?: string }).code;
+    if (code === "forest_not_visible") {
+      return (
+        <div className="grove-card grid min-h-[240px] place-items-center p-8 text-center">
+          <div>
+            <p className="font-display text-lg text-forest">A quiet clearing</p>
+            <p className="mt-2 text-sm text-muted-foreground">
+              {ownerLabel ? `${ownerLabel} keeps this forest private.` : "This forest is private."}
+            </p>
+          </div>
+        </div>
+      );
+    }
+    return (
+      <div className="grove-card grid min-h-[240px] place-items-center p-8 text-center">
+        <p className="text-sm text-muted-foreground">Couldn't reach this forest right now.</p>
+      </div>
+    );
+  }
+
+  const trees = forest.data?.trees ?? [];
+  const tooManyTrees = trees.length > 4000;
+  const use3D = webglOk && !tooManyTrees && !showList;
+
+  if (!use3D) {
+    return (
+      <div>
+        <Fallback2D
+          trees={trees}
+          reason={
+            showList
+              ? undefined
+              : !webglOk
+                ? "3D is unavailable on this device — showing the grove view."
+                : "Forest is large — showing the grove view."
+          }
+        />
+        {showList && <TreeList trees={trees} ownerLabel={ownerLabel} />}
+        <div className="mt-3 flex justify-center">
+          <Button variant="ghost" size="sm" onClick={() => setShowList((v) => !v)} className="text-moss">
+            <List className="mr-1.5 h-4 w-4" />
+            {showList ? "Hide tree list" : "Show tree list"}
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   if (mode === "overview") {
     return (
       <div className="space-y-3">
@@ -82,9 +144,16 @@ export function ForestExperience() {
               {forest.data && <CanopyOverview data={forest.data} quality={quality} reducedMotion={reducedMotion} />}
             </Canvas>
           </div>
+          <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between p-3">
+            {isVisitor && ownerLabel && (
+              <div className="pointer-events-auto rounded-full bg-[color-mix(in_oklch,var(--color-parchment)_88%,transparent)] px-3 py-1.5 text-xs text-forest shadow-soft backdrop-blur-md">
+                Visiting <span className="font-medium">{ownerLabel}</span>
+              </div>
+            )}
+          </div>
           <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-end justify-between p-3">
             <div className="pointer-events-auto rounded-full bg-[color-mix(in_oklch,var(--color-parchment)_88%,transparent)] px-3 py-1.5 text-xs text-forest shadow-soft backdrop-blur-md">
-              <span className="font-medium">{forest.data?.trees.length ?? 0}</span> trees
+              <span className="font-medium">{trees.length}</span> trees
               {recentTree && (
                 <span className="ml-2 inline-flex items-center gap-1 text-moss">
                   <Sparkle className="h-3 w-3" />
@@ -92,29 +161,54 @@ export function ForestExperience() {
                 </span>
               )}
             </div>
-            <Button
-              size="sm"
-              onClick={async () => {
-                if (userSound) { useForestStore.getState().setSoundOn(true); await forestAudio.start(); }
-                setMode("walk");
-              }}
-              className="pointer-events-auto rounded-full bg-forest text-parchment hover:bg-forest/90"
-            >
-              <TreesIcon className="mr-1.5 h-4 w-4" />
-              Enter forest
-            </Button>
+            {!previewOnly && trees.length > 0 && (
+              <Button
+                size="sm"
+                onClick={async () => {
+                  if (userSound) { useForestStore.getState().setSoundOn(true); await forestAudio.start(); }
+                  setMode("walk");
+                }}
+                className="pointer-events-auto rounded-full bg-forest text-parchment hover:bg-forest/90"
+                aria-label={ownerLabel ? `Walk into ${ownerLabel}'s forest` : "Enter your forest"}
+              >
+                <TreesIcon className="mr-1.5 h-4 w-4" />
+                {ownerLabel ? "Wander in" : "Enter forest"}
+              </Button>
+            )}
           </div>
+        </div>
+        {trees.length === 0 && (
+          <p className="text-center text-sm text-muted-foreground">
+            {isVisitor
+              ? `${ownerLabel ?? "This friend"} hasn't planted a tree yet.`
+              : "Your forest is a clearing — tend a habit to plant your first tree."}
+          </p>
+        )}
+        <div className="flex justify-center">
+          <Button variant="ghost" size="sm" onClick={() => setShowList(true)} className="text-moss">
+            <List className="mr-1.5 h-4 w-4" /> Show tree list
+          </Button>
         </div>
       </div>
     );
   }
 
-  // Walk mode — fullscreen overlay
-  return <WalkOverlay quality={quality} dpr={dpr} reducedMotion={reducedMotion} forest={forest.data!} selected={selected} setSelected={setSelected} onExit={() => setMode("overview")} />;
+  return (
+    <WalkOverlay
+      quality={quality}
+      dpr={dpr}
+      reducedMotion={reducedMotion}
+      forest={forest.data!}
+      selected={selected}
+      setSelected={setSelected}
+      ownerLabel={ownerLabel}
+      onExit={() => setMode("overview")}
+    />
+  );
 }
 
 function WalkOverlay({
-  quality, dpr, reducedMotion, forest, selected, setSelected, onExit,
+  quality, dpr, reducedMotion, forest, selected, setSelected, ownerLabel, onExit,
 }: {
   quality: "low" | "high";
   dpr: [number, number];
@@ -122,6 +216,7 @@ function WalkOverlay({
   forest: NonNullable<ReturnType<typeof useForestData>["data"]>;
   selected: ReturnType<typeof useForestStore.getState>["selected"];
   setSelected: ReturnType<typeof useForestStore.getState>["setSelected"];
+  ownerLabel?: string;
   onExit: () => void;
 }) {
   const [uiVisible, setUiVisible] = useState(true);
@@ -140,7 +235,6 @@ function WalkOverlay({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Lock body scroll while walking
   useEffect(() => {
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -170,6 +264,8 @@ function WalkOverlay({
       onPointerCancel={onPointerUp}
       onPointerLeave={onPointerUp}
       onClick={armIdle}
+      role="application"
+      aria-label={ownerLabel ? `Walking in ${ownerLabel}'s forest` : "Walking in your forest"}
     >
       <Canvas
         dpr={dpr}
@@ -180,6 +276,14 @@ function WalkOverlay({
       >
         <ForestWalk data={forest} quality={quality} reducedMotion={reducedMotion} />
       </Canvas>
+
+      {ownerLabel && uiVisible && (
+        <div className="pointer-events-none absolute inset-x-0 top-0 flex justify-center p-4">
+          <div className="rounded-full bg-[color-mix(in_oklch,var(--color-parchment)_88%,transparent)] px-4 py-1.5 text-sm text-forest shadow-soft backdrop-blur-md">
+            Visiting <span className="font-medium">{ownerLabel}</span>
+          </div>
+        </div>
+      )}
 
       <WalkControls
         visible={uiVisible}
