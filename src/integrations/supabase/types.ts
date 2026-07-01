@@ -369,9 +369,25 @@ export type Database = {
     }
     Functions: {
       are_friends: { Args: { _a: string; _b: string }; Returns: boolean }
+      block_user: { Args: { _target: string }; Returns: undefined }
       can_view_forest: {
         Args: { _owner: string; _viewer: string }
         Returns: boolean
+      }
+      get_visible_forest: {
+        Args: { _owner_id: string }
+        Returns: {
+          habit_name: string
+          id: string
+          planted_at: string
+          position_x: number
+          position_z: number
+          rotation_y: number
+          scale: number
+          species_name: string
+          species_slug: string
+          tree_species_id: string
+        }[]
       }
       log_habit_completion: {
         Args: {
@@ -381,6 +397,7 @@ export type Database = {
         }
         Returns: Json
       }
+      unblock_user: { Args: { _target: string }; Returns: undefined }
       undo_habit_log: { Args: { _log_id: string }; Returns: boolean }
     }
     Enums: {
