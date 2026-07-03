@@ -288,6 +288,7 @@ export type Database = {
           forest_seed: number
           forest_visibility: Database["public"]["Enums"]["forest_visibility"]
           id: string
+          onboarding_completed_at: string | null
           reduced_motion: boolean
           sound_enabled: boolean
           timezone: string
@@ -302,6 +303,7 @@ export type Database = {
           forest_seed?: number
           forest_visibility?: Database["public"]["Enums"]["forest_visibility"]
           id: string
+          onboarding_completed_at?: string | null
           reduced_motion?: boolean
           sound_enabled?: boolean
           timezone?: string
@@ -316,6 +318,7 @@ export type Database = {
           forest_seed?: number
           forest_visibility?: Database["public"]["Enums"]["forest_visibility"]
           id?: string
+          onboarding_completed_at?: string | null
           reduced_motion?: boolean
           sound_enabled?: boolean
           timezone?: string

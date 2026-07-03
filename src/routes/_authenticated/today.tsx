@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { useProfile } from "@/hooks/useProfile";
 import { AppShell } from "@/components/AppShell";
+import { ForestMiniPreview } from "@/components/ForestMiniPreview";
 import { Button } from "@/components/ui/button";
 import { greeting, localDateInTz, weekStart } from "@/lib/date";
 
@@ -25,10 +26,10 @@ function TodayPage() {
   const { user } = useAuth();
   const profile = useProfile();
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const tz = profile.data?.timezone || "UTC";
   const today = useMemo(() => localDateInTz(tz), [tz]);
   const wkStart = useMemo(() => weekStart(today), [today]);
-  const [lastPlanted, setLastPlanted] = useState<{ logId: string; speciesName: string } | null>(null);
 
   const habits = useQuery({
     queryKey: ["habits", user?.id],
@@ -81,10 +82,10 @@ function TodayPage() {
       return { result: data as { log: { id: string }; tree: { id: string } }, habit };
     },
     onSuccess: ({ result, habit }) => {
-      setLastPlanted({ logId: result.log.id, speciesName: habit.tree_species?.name || "tree" });
       qc.invalidateQueries({ queryKey: ["logs-cycle"] });
       qc.invalidateQueries({ queryKey: ["tree-count"] });
       qc.invalidateQueries({ queryKey: ["forest"] });
+      qc.invalidateQueries({ queryKey: ["forest-3d"] });
       toast.success(`A ${habit.tree_species?.name ?? "tree"} has taken root in your forest.`, {
         action: { label: "Undo", onClick: () => undo.mutate(result.log.id) },
         duration: 6000,
@@ -104,10 +105,10 @@ function TodayPage() {
       if (error) throw error;
     },
     onSuccess: () => {
-      setLastPlanted(null);
       qc.invalidateQueries({ queryKey: ["logs-cycle"] });
       qc.invalidateQueries({ queryKey: ["tree-count"] });
       qc.invalidateQueries({ queryKey: ["forest"] });
+      qc.invalidateQueries({ queryKey: ["forest-3d"] });
       toast("Removed.");
     },
   });
@@ -122,20 +123,42 @@ function TodayPage() {
     ).length;
   };
 
+  const trees = treeCount.data ?? 0;
+
   return (
     <AppShell>
       <header className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-4">
         <div className="min-w-0">
           <p className="text-sm text-muted-foreground">{greeting()},</p>
-          <h1 className="truncate font-display text-3xl text-forest">{profile.data?.display_name || profile.data?.username}</h1>
+          <h1 className="truncate font-display text-3xl text-forest">
+            {profile.data?.display_name || "Growve member"}
+          </h1>
         </div>
-        <Link to="/forest" className="grove-card flex shrink-0 items-center gap-2 px-3 py-2 text-sm text-forest">
-          <TreesIcon className="h-4 w-4" />
-          <span className="font-medium">{treeCount.data ?? 0}</span>
+        <Link
+          to="/history"
+          aria-label={`View planting history, ${trees} trees`}
+          className="grove-card flex shrink-0 items-center gap-2 rounded-2xl px-3 py-2 text-sm text-forest min-h-[44px]"
+        >
+          <TreesIcon className="h-4 w-4" aria-hidden />
+          <span className="font-medium">{trees}</span>
+          <span className="text-xs text-muted-foreground">trees</span>
         </Link>
       </header>
 
-      <ForestPreview count={treeCount.data ?? 0} />
+      <button
+        type="button"
+        onClick={() => navigate({ to: "/forest" })}
+        aria-label="Open your forest"
+        className="mt-6 block w-full text-left transition-transform active:scale-[0.995]"
+      >
+        <ForestMiniPreview
+          count={trees}
+          seed={profile.data?.forest_seed ? Number(profile.data.forest_seed) % 2147483647 : 1}
+          height={180}
+          emptyLabel="Your forest waits. Tend a habit to plant your first tree."
+        />
+        <p className="mt-2 text-center text-xs text-muted-foreground">Tap to wander your forest</p>
+      </button>
 
       <section className="mt-8">
         <div className="flex items-center justify-between">
@@ -188,12 +211,6 @@ function TodayPage() {
           )}
         </div>
       </section>
-
-      {lastPlanted && (
-        <p className="animate-mist-fade mt-8 text-center text-sm text-moss">
-          A {lastPlanted.speciesName} has taken root in your forest.
-        </p>
-      )}
     </AppShell>
   );
 }
@@ -214,7 +231,7 @@ function HabitRow({ habit, done, progress, target, onTend, disabled }: {
         onClick={onTend}
         disabled={disabled || done}
         size="sm"
-        className={`shrink-0 rounded-full px-4 ${done ? "bg-sage text-forest hover:bg-sage" : "bg-forest text-parchment hover:bg-forest/90"}`}
+        className={`shrink-0 rounded-full px-4 min-h-[40px] ${done ? "bg-sage text-forest hover:bg-sage" : "bg-forest text-parchment hover:bg-forest/90"}`}
       >
         {done ? <Check className="h-4 w-4" /> : "Tend"}
       </Button>
@@ -235,34 +252,4 @@ function EmptyHabit({ message }: { message: string }) {
 
 function SkeletonCard() {
   return <div className="grove-card h-20 animate-pulse" />;
-}
-
-function ForestPreview({ count }: { count: number }) {
-  // restrained illustrated preview
-  const trees = Math.min(count, 18);
-  return (
-    <div className="mt-6 overflow-hidden rounded-3xl border border-border bg-gradient-to-b from-mist to-parchment shadow-soft">
-      <div className="relative h-36">
-        <svg viewBox="0 0 320 144" className="h-full w-full">
-          <ellipse cx="160" cy="135" rx="160" ry="14" fill="oklch(0.88 0.02 140)" />
-          {Array.from({ length: trees }).map((_, i) => {
-            const x = 20 + ((i * 53) % 280);
-            const y = 70 + ((i * 17) % 50);
-            const s = 0.7 + ((i * 13) % 5) / 10;
-            return (
-              <g key={i} transform={`translate(${x} ${y}) scale(${s})`}>
-                <rect x="-2" y="14" width="4" height="12" fill="#755B45" rx="1" />
-                <path d="M0 -14 C-12 0 -14 10 -8 14 L8 14 C14 10 12 0 0 -14 Z" fill="#54745B" />
-              </g>
-            );
-          })}
-          {trees === 0 && (
-            <text x="160" y="78" textAnchor="middle" fill="oklch(0.46 0.02 150)" fontSize="11" fontFamily="Inter">
-              Your forest will appear here.
-            </text>
-          )}
-        </svg>
-      </div>
-    </div>
-  );
 }

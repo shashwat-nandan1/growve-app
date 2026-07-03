@@ -1,11 +1,10 @@
 import { Link } from "@tanstack/react-router";
-import { Sun, Trees, Users, User } from "lucide-react";
+import { Sun, Users, Settings as SettingsIcon } from "lucide-react";
 
 const items = [
   { to: "/today", label: "Today", Icon: Sun },
-  { to: "/forest", label: "Forest", Icon: Trees },
   { to: "/friends", label: "Friends", Icon: Users },
-  { to: "/you", label: "You", Icon: User },
+  { to: "/settings", label: "Settings", Icon: SettingsIcon },
 ] as const;
 
 export function BottomNav() {
@@ -19,7 +18,7 @@ export function BottomNav() {
           <li key={to} className="flex-1">
             <Link
               to={to}
-              className="flex flex-col items-center gap-1 py-3 text-xs text-muted-foreground transition-colors"
+              className="flex min-h-[56px] flex-col items-center justify-center gap-1 py-3 text-xs text-muted-foreground transition-colors"
               activeProps={{ className: "text-forest" }}
             >
               <Icon className="h-5 w-5" aria-hidden />
