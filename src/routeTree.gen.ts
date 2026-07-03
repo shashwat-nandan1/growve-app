@@ -9,27 +9,18 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as AuthenticatedYouRouteImport } from './routes/_authenticated/you'
 import { Route as AuthenticatedTodayRouteImport } from './routes/_authenticated/today'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedOnboardingRouteImport } from './routes/_authenticated/onboarding'
 import { Route as AuthenticatedFriendsRouteImport } from './routes/_authenticated/friends'
 import { Route as AuthenticatedForestRouteImport } from './routes/_authenticated/forest'
-import { Route as AuthenticatedUUsernameRouteImport } from './routes/_authenticated/u.$username'
 import { Route as AuthenticatedHabitsNewRouteImport } from './routes/_authenticated/habits.new'
 import { Route as AuthenticatedHabitsHabitIdRouteImport } from './routes/_authenticated/habits.$habitId'
-import { Route as AuthenticatedUUsernameForestRouteImport } from './routes/_authenticated/u.$username.forest'
 import { Route as AuthenticatedHabitsHabitIdEditRouteImport } from './routes/_authenticated/habits.$habitId.edit'
 
-const ResetPasswordRoute = ResetPasswordRouteImport.update({
-  id: '/reset-password',
-  path: '/reset-password',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
   path: '/auth',
@@ -43,11 +34,6 @@ const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
-} as any)
-const AuthenticatedYouRoute = AuthenticatedYouRouteImport.update({
-  id: '/you',
-  path: '/you',
-  getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedTodayRoute = AuthenticatedTodayRouteImport.update({
   id: '/today',
@@ -74,11 +60,6 @@ const AuthenticatedForestRoute = AuthenticatedForestRouteImport.update({
   path: '/forest',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const AuthenticatedUUsernameRoute = AuthenticatedUUsernameRouteImport.update({
-  id: '/u/$username',
-  path: '/u/$username',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
 const AuthenticatedHabitsNewRoute = AuthenticatedHabitsNewRouteImport.update({
   id: '/habits/new',
   path: '/habits/new',
@@ -90,12 +71,6 @@ const AuthenticatedHabitsHabitIdRoute =
     path: '/habits/$habitId',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
-const AuthenticatedUUsernameForestRoute =
-  AuthenticatedUUsernameForestRouteImport.update({
-    id: '/forest',
-    path: '/forest',
-    getParentRoute: () => AuthenticatedUUsernameRoute,
-  } as any)
 const AuthenticatedHabitsHabitIdEditRoute =
   AuthenticatedHabitsHabitIdEditRouteImport.update({
     id: '/edit',
@@ -106,121 +81,89 @@ const AuthenticatedHabitsHabitIdEditRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
-  '/reset-password': typeof ResetPasswordRoute
   '/forest': typeof AuthenticatedForestRoute
   '/friends': typeof AuthenticatedFriendsRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/today': typeof AuthenticatedTodayRoute
-  '/you': typeof AuthenticatedYouRoute
   '/habits/$habitId': typeof AuthenticatedHabitsHabitIdRouteWithChildren
   '/habits/new': typeof AuthenticatedHabitsNewRoute
-  '/u/$username': typeof AuthenticatedUUsernameRouteWithChildren
   '/habits/$habitId/edit': typeof AuthenticatedHabitsHabitIdEditRoute
-  '/u/$username/forest': typeof AuthenticatedUUsernameForestRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
-  '/reset-password': typeof ResetPasswordRoute
   '/forest': typeof AuthenticatedForestRoute
   '/friends': typeof AuthenticatedFriendsRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/today': typeof AuthenticatedTodayRoute
-  '/you': typeof AuthenticatedYouRoute
   '/habits/$habitId': typeof AuthenticatedHabitsHabitIdRouteWithChildren
   '/habits/new': typeof AuthenticatedHabitsNewRoute
-  '/u/$username': typeof AuthenticatedUUsernameRouteWithChildren
   '/habits/$habitId/edit': typeof AuthenticatedHabitsHabitIdEditRoute
-  '/u/$username/forest': typeof AuthenticatedUUsernameForestRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
-  '/reset-password': typeof ResetPasswordRoute
   '/_authenticated/forest': typeof AuthenticatedForestRoute
   '/_authenticated/friends': typeof AuthenticatedFriendsRoute
   '/_authenticated/onboarding': typeof AuthenticatedOnboardingRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/today': typeof AuthenticatedTodayRoute
-  '/_authenticated/you': typeof AuthenticatedYouRoute
   '/_authenticated/habits/$habitId': typeof AuthenticatedHabitsHabitIdRouteWithChildren
   '/_authenticated/habits/new': typeof AuthenticatedHabitsNewRoute
-  '/_authenticated/u/$username': typeof AuthenticatedUUsernameRouteWithChildren
   '/_authenticated/habits/$habitId/edit': typeof AuthenticatedHabitsHabitIdEditRoute
-  '/_authenticated/u/$username/forest': typeof AuthenticatedUUsernameForestRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
     | '/auth'
-    | '/reset-password'
     | '/forest'
     | '/friends'
     | '/onboarding'
     | '/settings'
     | '/today'
-    | '/you'
     | '/habits/$habitId'
     | '/habits/new'
-    | '/u/$username'
     | '/habits/$habitId/edit'
-    | '/u/$username/forest'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/auth'
-    | '/reset-password'
     | '/forest'
     | '/friends'
     | '/onboarding'
     | '/settings'
     | '/today'
-    | '/you'
     | '/habits/$habitId'
     | '/habits/new'
-    | '/u/$username'
     | '/habits/$habitId/edit'
-    | '/u/$username/forest'
   id:
     | '__root__'
     | '/'
     | '/_authenticated'
     | '/auth'
-    | '/reset-password'
     | '/_authenticated/forest'
     | '/_authenticated/friends'
     | '/_authenticated/onboarding'
     | '/_authenticated/settings'
     | '/_authenticated/today'
-    | '/_authenticated/you'
     | '/_authenticated/habits/$habitId'
     | '/_authenticated/habits/new'
-    | '/_authenticated/u/$username'
     | '/_authenticated/habits/$habitId/edit'
-    | '/_authenticated/u/$username/forest'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
-  ResetPasswordRoute: typeof ResetPasswordRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/reset-password': {
-      id: '/reset-password'
-      path: '/reset-password'
-      fullPath: '/reset-password'
-      preLoaderRoute: typeof ResetPasswordRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/auth': {
       id: '/auth'
       path: '/auth'
@@ -241,13 +184,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
-    }
-    '/_authenticated/you': {
-      id: '/_authenticated/you'
-      path: '/you'
-      fullPath: '/you'
-      preLoaderRoute: typeof AuthenticatedYouRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/today': {
       id: '/_authenticated/today'
@@ -284,13 +220,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedForestRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/_authenticated/u/$username': {
-      id: '/_authenticated/u/$username'
-      path: '/u/$username'
-      fullPath: '/u/$username'
-      preLoaderRoute: typeof AuthenticatedUUsernameRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
     '/_authenticated/habits/new': {
       id: '/_authenticated/habits/new'
       path: '/habits/new'
@@ -304,13 +233,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/habits/$habitId'
       preLoaderRoute: typeof AuthenticatedHabitsHabitIdRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/u/$username/forest': {
-      id: '/_authenticated/u/$username/forest'
-      path: '/forest'
-      fullPath: '/u/$username/forest'
-      preLoaderRoute: typeof AuthenticatedUUsernameForestRouteImport
-      parentRoute: typeof AuthenticatedUUsernameRoute
     }
     '/_authenticated/habits/$habitId/edit': {
       id: '/_authenticated/habits/$habitId/edit'
@@ -336,30 +258,14 @@ const AuthenticatedHabitsHabitIdRouteWithChildren =
     AuthenticatedHabitsHabitIdRouteChildren,
   )
 
-interface AuthenticatedUUsernameRouteChildren {
-  AuthenticatedUUsernameForestRoute: typeof AuthenticatedUUsernameForestRoute
-}
-
-const AuthenticatedUUsernameRouteChildren: AuthenticatedUUsernameRouteChildren =
-  {
-    AuthenticatedUUsernameForestRoute: AuthenticatedUUsernameForestRoute,
-  }
-
-const AuthenticatedUUsernameRouteWithChildren =
-  AuthenticatedUUsernameRoute._addFileChildren(
-    AuthenticatedUUsernameRouteChildren,
-  )
-
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedForestRoute: typeof AuthenticatedForestRoute
   AuthenticatedFriendsRoute: typeof AuthenticatedFriendsRoute
   AuthenticatedOnboardingRoute: typeof AuthenticatedOnboardingRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
   AuthenticatedTodayRoute: typeof AuthenticatedTodayRoute
-  AuthenticatedYouRoute: typeof AuthenticatedYouRoute
   AuthenticatedHabitsHabitIdRoute: typeof AuthenticatedHabitsHabitIdRouteWithChildren
   AuthenticatedHabitsNewRoute: typeof AuthenticatedHabitsNewRoute
-  AuthenticatedUUsernameRoute: typeof AuthenticatedUUsernameRouteWithChildren
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
@@ -368,10 +274,8 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedOnboardingRoute: AuthenticatedOnboardingRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
   AuthenticatedTodayRoute: AuthenticatedTodayRoute,
-  AuthenticatedYouRoute: AuthenticatedYouRoute,
   AuthenticatedHabitsHabitIdRoute: AuthenticatedHabitsHabitIdRouteWithChildren,
   AuthenticatedHabitsNewRoute: AuthenticatedHabitsNewRoute,
-  AuthenticatedUUsernameRoute: AuthenticatedUUsernameRouteWithChildren,
 }
 
 const AuthenticatedRouteRouteWithChildren =
@@ -381,7 +285,6 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
-  ResetPasswordRoute: ResetPasswordRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
