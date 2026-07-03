@@ -178,5 +178,3 @@ function SkeletonCard() {
   return <div className="grove-card h-40 animate-pulse" />;
 }
 
-// Silence unused-import warnings while keeping api surface stable
-void useQueries;
