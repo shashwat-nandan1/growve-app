@@ -11,7 +11,7 @@ function AuthGate() {
   const { session, loading } = useAuth();
   const profile = useProfile();
 
-  if (loading) {
+  if (loading || profile.isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="h-2 w-24 animate-pulse rounded-full bg-sage/40" />
@@ -20,17 +20,13 @@ function AuthGate() {
   }
   if (!session) return <Navigate to="/auth" replace />;
 
-  // Wait for profile then check username
-  if (profile.isLoading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="h-2 w-24 animate-pulse rounded-full bg-sage/40" />
-      </div>
-    );
-  }
-  const needsOnboarding = !profile.data?.username;
-  if (needsOnboarding && typeof window !== "undefined" && !window.location.pathname.startsWith("/onboarding")) {
+  const path = typeof window !== "undefined" ? window.location.pathname : "";
+  const needsOnboarding = !profile.data?.onboarding_completed_at;
+  if (needsOnboarding && !path.startsWith("/onboarding")) {
     return <Navigate to="/onboarding" replace />;
+  }
+  if (!needsOnboarding && path.startsWith("/onboarding")) {
+    return <Navigate to="/today" replace />;
   }
 
   return <Outlet />;
