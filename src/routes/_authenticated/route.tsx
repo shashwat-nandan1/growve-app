@@ -30,7 +30,7 @@ function AuthGate() {
       // Missing profile — call idempotent bootstrap.
       const { data: created, error: rpcErr } = await supabase.rpc("ensure_profile");
       if (rpcErr) throw rpcErr;
-      return (created ?? null) as typeof data;
+      return created as unknown as NonNullable<typeof data>;
     },
   });
 
