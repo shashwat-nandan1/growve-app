@@ -210,7 +210,7 @@ export function ForestExperience({ ownerId, ownerLabel, previewOnly, startInWalk
       selected={selected}
       setSelected={setSelected}
       ownerLabel={ownerLabel}
-      onExit={() => setMode("overview")}
+      onExit={() => (onExit ? onExit() : setMode("overview"))}
     />
   );
 }
