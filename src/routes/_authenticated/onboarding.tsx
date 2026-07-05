@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { useProfile } from "@/hooks/useProfile";
@@ -20,22 +20,15 @@ function Onboarding() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [habitName, setHabitName] = useState("");
-  const [speciesId, setSpeciesId] = useState<string>("");
   const [cadence, setCadence] = useState<"daily" | "weekly">("daily");
   const [target, setTarget] = useState(3);
   const [visibility, setVisibility] = useState<"public" | "private">("public");
 
-  const species = useQuery({
-    queryKey: ["species"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("tree_species").select("*").order("sort_order");
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
-
   async function completeOnboarding() {
-    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+    const tz = (() => {
+      try { return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"; }
+      catch { return "UTC"; }
+    })();
     await supabase
       .from("profiles")
       .update({ onboarding_completed_at: new Date().toISOString(), timezone: tz })
@@ -46,20 +39,25 @@ function Onboarding() {
   const savingHabit = useMutation({
     mutationFn: async () => {
       if (!habitName.trim()) throw new Error("Give your habit a name.");
-      if (!speciesId) throw new Error("Choose a tree species.");
-      const { error } = await supabase.from("habits").insert({
-        user_id: user!.id,
-        name: habitName.trim(),
-        cadence,
-        target_per_period: cadence === "weekly" ? Math.max(1, Math.min(7, target)) : 1,
-        tree_species_id: speciesId,
-        visibility,
+      const { data, error } = await supabase.rpc("create_habit_with_auto_tree", {
+        _name: habitName.trim(),
+        _description: "",
+        _cadence: cadence,
+        _target: cadence === "weekly" ? Math.max(1, Math.min(7, target)) : 1,
+        _visibility: visibility,
+        _start_date: new Date().toISOString().slice(0, 10),
       });
       if (error) throw error;
       await completeOnboarding();
+      return data as { species?: { name?: string } };
     },
-    onSuccess: () => {
-      toast.success("Your first seed is planted.");
+    onSuccess: (data) => {
+      const speciesName = data?.species?.name;
+      toast.success(
+        speciesName
+          ? `Your ${habitName.trim()} habit will grow as a ${speciesName.toLowerCase()}.`
+          : "Your first seed is planted."
+      );
       navigate({ to: "/today", replace: true });
     },
     onError: (e: { message?: string }) => toast.error(e.message || "Couldn't save."),
@@ -79,7 +77,7 @@ function Onboarding() {
         <p className="text-xs uppercase tracking-widest text-muted-foreground">Welcome, {firstName}</p>
         <h1 className="mt-2 font-display text-3xl text-forest">Plant a first habit</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Small and steady. Every time you tend it, a tree grows in your forest.
+          Each habit grows its own kind of tree. Yours will be revealed when it takes root.
         </p>
 
         <form
@@ -111,22 +109,6 @@ function Onboarding() {
               <Input id="t" type="number" min={1} max={7} value={target} onChange={(e) => setTarget(Number(e.target.value))} className="mt-1.5" />
             </div>
           )}
-          <div>
-            <Label>Tree species</Label>
-            <div className="mt-1.5 grid grid-cols-3 gap-2">
-              {species.data?.map((s) => (
-                <button
-                  type="button"
-                  key={s.id}
-                  onClick={() => setSpeciesId(s.id)}
-                  className={`rounded-xl border p-3 text-center text-xs transition-colors ${speciesId === s.id ? "border-forest bg-mist" : "border-border bg-card"}`}
-                >
-                  <TreeGlyph className="mx-auto mb-1 h-7 w-7 text-moss" />
-                  {s.name}
-                </button>
-              ))}
-            </div>
-          </div>
           <div>
             <Label>Plaque visibility</Label>
             <div className="mt-1.5 grid grid-cols-2 gap-2">
@@ -163,14 +145,5 @@ function Onboarding() {
         </form>
       </div>
     </div>
-  );
-}
-
-function TreeGlyph({ className = "" }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 3c-3 4-5 7-5 10a5 5 0 0 0 10 0c0-3-2-6-5-10z" />
-      <path d="M12 13v8" />
-    </svg>
   );
 }

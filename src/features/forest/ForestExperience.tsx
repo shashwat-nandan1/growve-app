@@ -22,9 +22,13 @@ type Props = {
   ownerLabel?: string;
   /** When true, hides the "Enter forest" button and walk mode. */
   previewOnly?: boolean;
+  /** When true, mount directly in immersive walk mode. */
+  startInWalkMode?: boolean;
+  /** Called when the user exits walk mode; overrides in-app overview return. */
+  onExit?: () => void;
 };
 
-export function ForestExperience({ ownerId, ownerLabel, previewOnly }: Props = {}) {
+export function ForestExperience({ ownerId, ownerLabel, previewOnly, startInWalkMode, onExit }: Props = {}) {
   const { user } = useAuth();
   const profile = useProfile();
   const targetOwner = ownerId ?? user?.id;
@@ -57,9 +61,13 @@ export function ForestExperience({ ownerId, ownerLabel, previewOnly }: Props = {
 
   // Reset selection & mode when switching owners
   useEffect(() => {
-    useForestStore.getState().setMode("overview");
+    useForestStore.getState().setMode(startInWalkMode ? "walk" : "overview");
     useForestStore.getState().setSelected(null);
-  }, [targetOwner]);
+    if (startInWalkMode) {
+      // Best-effort start of ambient audio when explicitly launched into walk.
+      if (userSound) { useForestStore.getState().setSoundOn(true); forestAudio.start().catch(() => {}); }
+    }
+  }, [targetOwner, startInWalkMode, userSound]);
 
   const recentTree = useMemo(() => {
     const list = forest.data?.trees ?? [];
@@ -105,7 +113,7 @@ export function ForestExperience({ ownerId, ownerLabel, previewOnly }: Props = {
   const use3D = webglOk && !tooManyTrees && !showList;
 
   if (!use3D) {
-    return (
+    const body = (
       <div>
         <Fallback2D
           trees={trees}
@@ -118,15 +126,29 @@ export function ForestExperience({ ownerId, ownerLabel, previewOnly }: Props = {
           }
         />
         {showList && <TreeList trees={trees} ownerLabel={ownerLabel} />}
-        <div className="mt-3 flex justify-center">
+        <div className="mt-3 flex justify-center gap-2">
           <Button variant="ghost" size="sm" onClick={() => setShowList((v) => !v)} className="text-moss">
             <List className="mr-1.5 h-4 w-4" />
             {showList ? "Hide tree list" : "Show tree list"}
           </Button>
+          {startInWalkMode && onExit && (
+            <Button variant="ghost" size="sm" onClick={onExit} className="text-moss">
+              Exit forest
+            </Button>
+          )}
         </div>
       </div>
     );
+    if (startInWalkMode) {
+      return (
+        <div className="fixed inset-0 z-40 overflow-auto bg-background p-4">
+          <div className="mx-auto max-w-md">{body}</div>
+        </div>
+      );
+    }
+    return body;
   }
+
 
   if (mode === "overview") {
     return (
@@ -202,7 +224,7 @@ export function ForestExperience({ ownerId, ownerLabel, previewOnly }: Props = {
       selected={selected}
       setSelected={setSelected}
       ownerLabel={ownerLabel}
-      onExit={() => setMode("overview")}
+      onExit={() => (onExit ? onExit() : setMode("overview"))}
     />
   );
 }

@@ -1,8 +1,6 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { AppShell } from "@/components/AppShell";
 import { ForestExperience } from "@/features/forest";
 
 export const Route = createFileRoute("/_authenticated/forest/$ownerId")({
@@ -12,6 +10,7 @@ export const Route = createFileRoute("/_authenticated/forest/$ownerId")({
 
 function VisitForestPage() {
   const { ownerId } = Route.useParams();
+  const navigate = useNavigate();
   const profileQ = useQuery({
     queryKey: ["profile-by-id", ownerId],
     queryFn: async () => {
@@ -27,26 +26,20 @@ function VisitForestPage() {
 
   const label = profileQ.data?.display_name || "Friend";
 
-  return (
-    <AppShell>
-      <Link to="/friends" className="inline-flex items-center gap-1 text-sm text-moss hover:underline">
-        <ArrowLeft className="h-4 w-4" /> Friends
-      </Link>
-      <header className="mt-3">
-        <h1 className="font-display text-3xl text-forest">{label}'s forest</h1>
-        <p className="mt-1 text-sm text-muted-foreground">A quiet visit — walk softly and read the plaques.</p>
-      </header>
-      <div className="mt-6">
-        {profileQ.isLoading ? (
-          <div className="h-[360px] animate-pulse rounded-3xl bg-mist" />
-        ) : profileQ.data ? (
-          <ForestExperience ownerId={profileQ.data.id} ownerLabel={label} />
-        ) : (
-          <div className="grove-card p-8 text-center text-sm text-muted-foreground">
-            This forest isn't available.
-          </div>
-        )}
+  if (profileQ.isLoading) {
+    return (
+      <div className="fixed inset-0 z-40 grid place-items-center bg-[#dde3da]">
+        <div className="h-2 w-24 animate-pulse rounded-full bg-sage/60" />
       </div>
-    </AppShell>
+    );
+  }
+
+  return (
+    <ForestExperience
+      ownerId={ownerId}
+      ownerLabel={label}
+      startInWalkMode
+      onExit={() => navigate({ to: "/friends" })}
+    />
   );
 }

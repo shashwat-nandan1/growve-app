@@ -147,8 +147,17 @@ function TodayPage() {
 
       <button
         type="button"
-        onClick={() => navigate({ to: "/forest" })}
-        aria-label="Open your forest"
+        onClick={async () => {
+          // Best-effort: unlock audio via user gesture before navigating.
+          try {
+            const { forestAudio } = await import("@/features/forest/audio");
+            if (profile.data?.sound_enabled ?? true) {
+              await forestAudio.start().catch(() => {});
+            }
+          } catch { /* noop */ }
+          navigate({ to: "/forest" });
+        }}
+        aria-label="Enter your forest"
         className="mt-6 block w-full text-left transition-transform active:scale-[0.995]"
       >
         <ForestMiniPreview
@@ -157,8 +166,8 @@ function TodayPage() {
           height={180}
           emptyLabel="Your forest waits. Tend a habit to plant your first tree."
         />
-        <p className="mt-2 text-center text-xs text-muted-foreground">Tap to wander your forest</p>
       </button>
+
 
       <section className="mt-8">
         <div className="flex items-center justify-between">

@@ -20,25 +20,21 @@ export const Route = createFileRoute("/_authenticated/settings")({
 
 function SettingsPage() {
   const profile = useProfile();
-  const { user } = useAuth();
+  const { user, invalidateSessionAndRedirectToAuth } = useAuth();
   const qc = useQueryClient();
   const navigate = useNavigate();
 
   const [displayName, setDisplayName] = useState("");
   const [bio, setBio] = useState("");
-  const [visibility, setVisibility] = useState<"private" | "friends" | "public">("friends");
   const [sound, setSound] = useState(true);
   const [reduced, setReduced] = useState(false);
-  const [timezone, setTimezone] = useState("UTC");
 
   useEffect(() => {
     if (profile.data) {
       setDisplayName(profile.data.display_name || "");
       setBio(profile.data.bio || "");
-      setVisibility(profile.data.forest_visibility);
       setSound(profile.data.sound_enabled);
       setReduced(profile.data.reduced_motion);
-      setTimezone(profile.data.timezone);
     }
   }, [profile.data]);
 
@@ -47,10 +43,8 @@ function SettingsPage() {
       const { error } = await supabase.from("profiles").update({
         display_name: displayName.trim() || "Growve member",
         bio: bio.trim().slice(0, 280) || null,
-        forest_visibility: visibility,
         sound_enabled: sound,
         reduced_motion: reduced,
-        timezone,
       }).eq("id", user!.id);
       if (error) throw error;
     },
@@ -62,9 +56,7 @@ function SettingsPage() {
   });
 
   async function signOut() {
-    await qc.cancelQueries();
-    qc.clear();
-    await supabase.auth.signOut();
+    await invalidateSessionAndRedirectToAuth();
     navigate({ to: "/auth", replace: true });
   }
 
@@ -113,28 +105,6 @@ function SettingsPage() {
       </section>
 
       <section className="mt-6 grove-card space-y-5 p-6">
-        <h2 className="font-display text-lg text-forest">Privacy</h2>
-        <div>
-          <Label>Forest visibility</Label>
-          <div className="mt-2 grid grid-cols-3 gap-2">
-            {(["private", "friends", "public"] as const).map((v) => (
-              <button
-                key={v}
-                type="button"
-                onClick={() => setVisibility(v)}
-                className={`rounded-xl border px-3 py-2 text-sm capitalize ${visibility === v ? "border-forest bg-forest text-parchment" : "border-border bg-card"}`}
-              >
-                {v}
-              </button>
-            ))}
-          </div>
-          <p className="mt-2 text-xs text-muted-foreground">
-            Habits marked private always show as "A quiet promise" on plaques, even to friends.
-          </p>
-        </div>
-      </section>
-
-      <section className="mt-6 grove-card space-y-5 p-6">
         <h2 className="font-display text-lg text-forest">Forest & experience</h2>
         <Row label="Sound" desc="Subtle audio cues on tend.">
           <Switch checked={sound} onCheckedChange={setSound} />
@@ -142,17 +112,6 @@ function SettingsPage() {
         <Row label="Reduced motion" desc="Calmer transitions and animations.">
           <Switch checked={reduced} onCheckedChange={setReduced} />
         </Row>
-        <div>
-          <Label htmlFor="tz">Timezone</Label>
-          <Input id="tz" value={timezone} onChange={(e) => setTimezone(e.target.value)} className="mt-1.5" />
-          <button
-            type="button"
-            className="mt-2 text-xs text-moss hover:underline"
-            onClick={() => setTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC")}
-          >
-            Use device timezone
-          </button>
-        </div>
       </section>
 
       <Button
