@@ -113,7 +113,7 @@ export function ForestExperience({ ownerId, ownerLabel, previewOnly, startInWalk
   const use3D = webglOk && !tooManyTrees && !showList;
 
   if (!use3D) {
-    return (
+    const body = (
       <div>
         <Fallback2D
           trees={trees}
@@ -126,15 +126,29 @@ export function ForestExperience({ ownerId, ownerLabel, previewOnly, startInWalk
           }
         />
         {showList && <TreeList trees={trees} ownerLabel={ownerLabel} />}
-        <div className="mt-3 flex justify-center">
+        <div className="mt-3 flex justify-center gap-2">
           <Button variant="ghost" size="sm" onClick={() => setShowList((v) => !v)} className="text-moss">
             <List className="mr-1.5 h-4 w-4" />
             {showList ? "Hide tree list" : "Show tree list"}
           </Button>
+          {startInWalkMode && onExit && (
+            <Button variant="ghost" size="sm" onClick={onExit} className="text-moss">
+              Exit forest
+            </Button>
+          )}
         </div>
       </div>
     );
+    if (startInWalkMode) {
+      return (
+        <div className="fixed inset-0 z-40 overflow-auto bg-background p-4">
+          <div className="mx-auto max-w-md">{body}</div>
+        </div>
+      );
+    }
+    return body;
   }
+
 
   if (mode === "overview") {
     return (
