@@ -22,9 +22,13 @@ type Props = {
   ownerLabel?: string;
   /** When true, hides the "Enter forest" button and walk mode. */
   previewOnly?: boolean;
+  /** When true, mount directly in immersive walk mode. */
+  startInWalkMode?: boolean;
+  /** Called when the user exits walk mode; overrides in-app overview return. */
+  onExit?: () => void;
 };
 
-export function ForestExperience({ ownerId, ownerLabel, previewOnly }: Props = {}) {
+export function ForestExperience({ ownerId, ownerLabel, previewOnly, startInWalkMode, onExit }: Props = {}) {
   const { user } = useAuth();
   const profile = useProfile();
   const targetOwner = ownerId ?? user?.id;
