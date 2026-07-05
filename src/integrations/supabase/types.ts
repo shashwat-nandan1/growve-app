@@ -377,6 +377,41 @@ export type Database = {
         Args: { _owner: string; _viewer: string }
         Returns: boolean
       }
+      create_habit_with_auto_tree: {
+        Args: {
+          _cadence: Database["public"]["Enums"]["habit_cadence"]
+          _description: string
+          _name: string
+          _start_date: string
+          _target: number
+          _visibility: Database["public"]["Enums"]["habit_visibility"]
+        }
+        Returns: Json
+      }
+      ensure_profile: {
+        Args: never
+        Returns: {
+          avatar_url: string | null
+          bio: string | null
+          created_at: string
+          display_name: string | null
+          forest_seed: number
+          forest_visibility: Database["public"]["Enums"]["forest_visibility"]
+          id: string
+          onboarding_completed_at: string | null
+          reduced_motion: boolean
+          sound_enabled: boolean
+          timezone: string
+          updated_at: string
+          username: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "profiles"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       get_visible_forest: {
         Args: { _owner_id: string }
         Returns: {
