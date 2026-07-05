@@ -21,52 +21,65 @@ function EditHabit() {
   const [name, setName] = useState("");
   const [desc, setDesc] = useState("");
   const [target, setTarget] = useState(1);
-  const [speciesId, setSpeciesId] = useState("");
   const [cadence, setCadence] = useState<"daily" | "weekly">("daily");
+  const [visibility, setVisibility] = useState<"public" | "private">("public");
 
   const habit = useQuery({
     queryKey: ["habit", habitId],
     queryFn: async () => {
-      const { data, error } = await supabase.from("habits").select("*").eq("id", habitId).maybeSingle();
+      const { data, error } = await supabase
+        .from("habits")
+        .select("*, tree_species(name)")
+        .eq("id", habitId)
+        .maybeSingle();
       if (error) throw error;
       return data;
     },
   });
-  const species = useQuery({
-    queryKey: ["species"],
-    queryFn: async () => (await supabase.from("tree_species").select("*").order("sort_order")).data ?? [],
-  });
 
   useEffect(() => {
     if (habit.data) {
-      setName(habit.data.name); setDesc(habit.data.description || "");
-      setTarget(habit.data.target_per_period); setSpeciesId(habit.data.tree_species_id);
+      setName(habit.data.name);
+      setDesc(habit.data.description || "");
+      setTarget(habit.data.target_per_period);
       setCadence(habit.data.cadence);
+      setVisibility(habit.data.visibility);
     }
   }, [habit.data]);
 
   const save = useMutation({
     mutationFn: async () => {
       const { error } = await supabase.from("habits").update({
-        name: name.trim(), description: desc.trim() || null,
-        cadence, target_per_period: cadence === "weekly" ? Math.max(1, Math.min(7, target)) : 1,
-        tree_species_id: speciesId,
+        name: name.trim(),
+        description: desc.trim() || null,
+        cadence,
+        target_per_period: cadence === "weekly" ? Math.max(1, Math.min(7, target)) : 1,
+        visibility,
       }).eq("id", habitId);
       if (error) throw error;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["habit", habitId] });
       qc.invalidateQueries({ queryKey: ["habits"] });
+      qc.invalidateQueries({ queryKey: ["forest-3d"] });
       toast.success("Saved.");
       navigate({ to: "/habits/$habitId", params: { habitId } });
     },
+    onError: (e: { message: string }) => toast.error(e.message),
   });
 
   if (habit.isLoading) return <AppShell><div className="h-32 animate-pulse rounded-2xl bg-mist" /></AppShell>;
 
+  const speciesName = (habit.data as { tree_species?: { name?: string } | null } | undefined)?.tree_species?.name;
+
   return (
     <AppShell>
       <h1 className="font-display text-3xl text-forest">Edit habit</h1>
+      {speciesName && (
+        <p className="mt-2 text-sm text-muted-foreground">
+          This habit grows <span className="text-forest">{speciesName.toLowerCase()}</span> trees.
+        </p>
+      )}
       <form onSubmit={(e) => { e.preventDefault(); save.mutate(); }} className="mt-6 grove-card space-y-4 p-6">
         <div>
           <Label htmlFor="n">Name</Label>
@@ -92,12 +105,16 @@ function EditHabit() {
           </div>
         )}
         <div>
-          <Label>Tree species</Label>
-          <div className="mt-1.5 grid grid-cols-3 gap-2">
-            {species.data?.map((s) => (
-              <button key={s.id} type="button" onClick={() => setSpeciesId(s.id)}
-                className={`rounded-xl border p-3 text-center text-xs ${speciesId === s.id ? "border-forest bg-mist" : "border-border bg-card"}`}>
-                {s.name}
+          <Label>Plaque visibility</Label>
+          <div className="mt-1.5 grid grid-cols-2 gap-2">
+            {(["public", "private"] as const).map((v) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => setVisibility(v)}
+                className={`rounded-xl border px-3 py-2.5 text-sm capitalize ${visibility === v ? "border-forest bg-forest text-parchment" : "border-border bg-card"}`}
+              >
+                {v}
               </button>
             ))}
           </div>
