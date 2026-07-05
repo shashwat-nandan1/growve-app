@@ -1,9 +1,8 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/lib/auth";
 import { AppShell } from "@/components/AppShell";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,41 +15,36 @@ export const Route = createFileRoute("/_authenticated/habits/new")({
 });
 
 function NewHabit() {
-  const { user } = useAuth();
   const qc = useQueryClient();
   const navigate = useNavigate();
   const [name, setName] = useState("");
   const [desc, setDesc] = useState("");
   const [cadence, setCadence] = useState<"daily" | "weekly">("daily");
   const [target, setTarget] = useState(3);
-  const [speciesId, setSpeciesId] = useState("");
-
-  const species = useQuery({
-    queryKey: ["species"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("tree_species").select("*").order("sort_order");
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
+  const [visibility, setVisibility] = useState<"public" | "private">("public");
 
   const save = useMutation({
     mutationFn: async () => {
       if (!name.trim()) throw new Error("Name is required.");
-      if (!speciesId) throw new Error("Choose a tree species.");
-      const { error } = await supabase.from("habits").insert({
-        user_id: user!.id,
-        name: name.trim(),
-        description: desc.trim() || null,
-        cadence,
-        target_per_period: cadence === "weekly" ? Math.max(1, Math.min(7, target)) : 1,
-        tree_species_id: speciesId,
+      const { data, error } = await supabase.rpc("create_habit_with_auto_tree", {
+        _name: name.trim(),
+        _description: desc.trim() || null,
+        _cadence: cadence,
+        _target: cadence === "weekly" ? Math.max(1, Math.min(7, target)) : 1,
+        _visibility: visibility,
+        _start_date: null,
       });
       if (error) throw error;
+      return data as { species?: { name?: string } };
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ["habits"] });
-      toast.success("Habit added.");
+      const speciesName = data?.species?.name;
+      toast.success(
+        speciesName
+          ? `Your ${name.trim()} habit will grow as a ${speciesName.toLowerCase()}.`
+          : "Habit added."
+      );
       navigate({ to: "/today" });
     },
     onError: (e: { message: string }) => toast.error(e.message),
@@ -59,6 +53,9 @@ function NewHabit() {
   return (
     <AppShell>
       <h1 className="font-display text-3xl text-forest">New habit</h1>
+      <p className="mt-2 text-sm text-muted-foreground">
+        Each habit grows its own kind of tree. Yours will be revealed when it takes root.
+      </p>
       <form onSubmit={(e) => { e.preventDefault(); save.mutate(); }} className="mt-6 grove-card space-y-4 p-6">
         <div>
           <Label htmlFor="n">Name</Label>
@@ -86,15 +83,16 @@ function NewHabit() {
           </div>
         )}
         <div>
-          <Label>Tree species</Label>
-          <div className="mt-1.5 grid grid-cols-3 gap-2">
-            {species.data?.map((s) => (
-              <button type="button" key={s.id} onClick={() => setSpeciesId(s.id)}
-                className={`rounded-xl border p-3 text-center text-xs ${speciesId === s.id ? "border-forest bg-mist" : "border-border bg-card"}`}>
-                <svg viewBox="0 0 24 24" className="mx-auto mb-1 h-7 w-7 text-moss" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M12 3c-3 4-5 7-5 10a5 5 0 0 0 10 0c0-3-2-6-5-10z" /><path d="M12 13v8" />
-                </svg>
-                {s.name}
+          <Label>Plaque visibility</Label>
+          <div className="mt-1.5 grid grid-cols-2 gap-2">
+            {(["public", "private"] as const).map((v) => (
+              <button
+                type="button"
+                key={v}
+                onClick={() => setVisibility(v)}
+                className={`rounded-xl border px-3 py-2.5 text-sm capitalize ${visibility === v ? "border-forest bg-forest text-parchment" : "border-border bg-card"}`}
+              >
+                {v}
               </button>
             ))}
           </div>
