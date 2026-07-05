@@ -61,9 +61,13 @@ export function ForestExperience({ ownerId, ownerLabel, previewOnly, startInWalk
 
   // Reset selection & mode when switching owners
   useEffect(() => {
-    useForestStore.getState().setMode("overview");
+    useForestStore.getState().setMode(startInWalkMode ? "walk" : "overview");
     useForestStore.getState().setSelected(null);
-  }, [targetOwner]);
+    if (startInWalkMode) {
+      // Best-effort start of ambient audio when explicitly launched into walk.
+      if (userSound) { useForestStore.getState().setSoundOn(true); forestAudio.start().catch(() => {}); }
+    }
+  }, [targetOwner, startInWalkMode, userSound]);
 
   const recentTree = useMemo(() => {
     const list = forest.data?.trees ?? [];
