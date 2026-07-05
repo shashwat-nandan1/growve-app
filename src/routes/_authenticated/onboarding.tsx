@@ -41,11 +41,11 @@ function Onboarding() {
       if (!habitName.trim()) throw new Error("Give your habit a name.");
       const { data, error } = await supabase.rpc("create_habit_with_auto_tree", {
         _name: habitName.trim(),
-        _description: null,
+        _description: "",
         _cadence: cadence,
         _target: cadence === "weekly" ? Math.max(1, Math.min(7, target)) : 1,
         _visibility: visibility,
-        _start_date: null,
+        _start_date: new Date().toISOString().slice(0, 10),
       });
       if (error) throw error;
       await completeOnboarding();

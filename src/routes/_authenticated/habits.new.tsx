@@ -28,11 +28,11 @@ function NewHabit() {
       if (!name.trim()) throw new Error("Name is required.");
       const { data, error } = await supabase.rpc("create_habit_with_auto_tree", {
         _name: name.trim(),
-        _description: desc.trim() || null,
+        _description: desc.trim(),
         _cadence: cadence,
         _target: cadence === "weekly" ? Math.max(1, Math.min(7, target)) : 1,
         _visibility: visibility,
-        _start_date: null,
+        _start_date: new Date().toISOString().slice(0, 10),
       });
       if (error) throw error;
       return data as { species?: { name?: string } };
