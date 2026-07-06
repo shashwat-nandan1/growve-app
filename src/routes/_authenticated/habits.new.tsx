@@ -6,7 +6,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/AppShell";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/_authenticated/habits/new")({
@@ -18,7 +17,6 @@ function NewHabit() {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const [name, setName] = useState("");
-  const [desc, setDesc] = useState("");
   const [cadence, setCadence] = useState<"daily" | "weekly">("daily");
   const [target, setTarget] = useState(3);
   const [visibility, setVisibility] = useState<"public" | "private">("public");
@@ -28,7 +26,6 @@ function NewHabit() {
       if (!name.trim()) throw new Error("Name is required.");
       const { data, error } = await supabase.rpc("create_habit_with_auto_tree", {
         _name: name.trim(),
-        _description: desc.trim(),
         _cadence: cadence,
         _target: cadence === "weekly" ? Math.max(1, Math.min(7, target)) : 1,
         _visibility: visibility,
@@ -60,10 +57,6 @@ function NewHabit() {
         <div>
           <Label htmlFor="n">Name</Label>
           <Input id="n" value={name} onChange={(e) => setName(e.target.value)} maxLength={80} required className="mt-1.5" />
-        </div>
-        <div>
-          <Label htmlFor="d">Description (optional)</Label>
-          <Textarea id="d" value={desc} onChange={(e) => setDesc(e.target.value)} maxLength={280} rows={2} className="mt-1.5" />
         </div>
         <div>
           <Label>Cadence</Label>
