@@ -1,17 +1,7 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { ForestExperience } from "@/features/forest";
+import { createFileRoute, Outlet } from "@tanstack/react-router";
 
+// Layout route for /forest. The signed-in user's forest is at forest.index.tsx,
+// and a friend's forest is at forest.$ownerId.tsx.
 export const Route = createFileRoute("/_authenticated/forest")({
-  head: () => ({ meta: [{ title: "Your forest — Growve" }] }),
-  component: ForestPage,
+  component: () => <Outlet />,
 });
-
-function ForestPage() {
-  const navigate = useNavigate();
-  return (
-    <ForestExperience
-      startInWalkMode
-      onExit={() => navigate({ to: "/today" })}
-    />
-  );
-}

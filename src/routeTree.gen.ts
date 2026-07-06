@@ -18,6 +18,8 @@ import { Route as AuthenticatedOnboardingRouteImport } from './routes/_authentic
 import { Route as AuthenticatedHistoryRouteImport } from './routes/_authenticated/history'
 import { Route as AuthenticatedFriendsRouteImport } from './routes/_authenticated/friends'
 import { Route as AuthenticatedForestRouteImport } from './routes/_authenticated/forest'
+import { Route as AuthenticatedFriendsIndexRouteImport } from './routes/_authenticated/friends.index'
+import { Route as AuthenticatedForestIndexRouteImport } from './routes/_authenticated/forest.index'
 import { Route as AuthenticatedHabitsNewRouteImport } from './routes/_authenticated/habits.new'
 import { Route as AuthenticatedHabitsHabitIdRouteImport } from './routes/_authenticated/habits.$habitId'
 import { Route as AuthenticatedFriendsAddRouteImport } from './routes/_authenticated/friends.add'
@@ -68,6 +70,18 @@ const AuthenticatedForestRoute = AuthenticatedForestRouteImport.update({
   path: '/forest',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedFriendsIndexRoute =
+  AuthenticatedFriendsIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AuthenticatedFriendsRoute,
+  } as any)
+const AuthenticatedForestIndexRoute =
+  AuthenticatedForestIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AuthenticatedForestRoute,
+  } as any)
 const AuthenticatedHabitsNewRoute = AuthenticatedHabitsNewRouteImport.update({
   id: '/habits/new',
   path: '/habits/new',
@@ -110,13 +124,13 @@ export interface FileRoutesByFullPath {
   '/friends/add': typeof AuthenticatedFriendsAddRoute
   '/habits/$habitId': typeof AuthenticatedHabitsHabitIdRouteWithChildren
   '/habits/new': typeof AuthenticatedHabitsNewRoute
+  '/forest/': typeof AuthenticatedForestIndexRoute
+  '/friends/': typeof AuthenticatedFriendsIndexRoute
   '/habits/$habitId/edit': typeof AuthenticatedHabitsHabitIdEditRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
-  '/forest': typeof AuthenticatedForestRouteWithChildren
-  '/friends': typeof AuthenticatedFriendsRouteWithChildren
   '/history': typeof AuthenticatedHistoryRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
   '/settings': typeof AuthenticatedSettingsRoute
@@ -125,6 +139,8 @@ export interface FileRoutesByTo {
   '/friends/add': typeof AuthenticatedFriendsAddRoute
   '/habits/$habitId': typeof AuthenticatedHabitsHabitIdRouteWithChildren
   '/habits/new': typeof AuthenticatedHabitsNewRoute
+  '/forest': typeof AuthenticatedForestIndexRoute
+  '/friends': typeof AuthenticatedFriendsIndexRoute
   '/habits/$habitId/edit': typeof AuthenticatedHabitsHabitIdEditRoute
 }
 export interface FileRoutesById {
@@ -142,6 +158,8 @@ export interface FileRoutesById {
   '/_authenticated/friends/add': typeof AuthenticatedFriendsAddRoute
   '/_authenticated/habits/$habitId': typeof AuthenticatedHabitsHabitIdRouteWithChildren
   '/_authenticated/habits/new': typeof AuthenticatedHabitsNewRoute
+  '/_authenticated/forest/': typeof AuthenticatedForestIndexRoute
+  '/_authenticated/friends/': typeof AuthenticatedFriendsIndexRoute
   '/_authenticated/habits/$habitId/edit': typeof AuthenticatedHabitsHabitIdEditRoute
 }
 export interface FileRouteTypes {
@@ -159,13 +177,13 @@ export interface FileRouteTypes {
     | '/friends/add'
     | '/habits/$habitId'
     | '/habits/new'
+    | '/forest/'
+    | '/friends/'
     | '/habits/$habitId/edit'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/auth'
-    | '/forest'
-    | '/friends'
     | '/history'
     | '/onboarding'
     | '/settings'
@@ -174,6 +192,8 @@ export interface FileRouteTypes {
     | '/friends/add'
     | '/habits/$habitId'
     | '/habits/new'
+    | '/forest'
+    | '/friends'
     | '/habits/$habitId/edit'
   id:
     | '__root__'
@@ -190,6 +210,8 @@ export interface FileRouteTypes {
     | '/_authenticated/friends/add'
     | '/_authenticated/habits/$habitId'
     | '/_authenticated/habits/new'
+    | '/_authenticated/forest/'
+    | '/_authenticated/friends/'
     | '/_authenticated/habits/$habitId/edit'
   fileRoutesById: FileRoutesById
 }
@@ -264,6 +286,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedForestRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/friends/': {
+      id: '/_authenticated/friends/'
+      path: '/'
+      fullPath: '/friends/'
+      preLoaderRoute: typeof AuthenticatedFriendsIndexRouteImport
+      parentRoute: typeof AuthenticatedFriendsRoute
+    }
+    '/_authenticated/forest/': {
+      id: '/_authenticated/forest/'
+      path: '/'
+      fullPath: '/forest/'
+      preLoaderRoute: typeof AuthenticatedForestIndexRouteImport
+      parentRoute: typeof AuthenticatedForestRoute
+    }
     '/_authenticated/habits/new': {
       id: '/_authenticated/habits/new'
       path: '/habits/new'
@@ -304,10 +340,12 @@ declare module '@tanstack/react-router' {
 
 interface AuthenticatedForestRouteChildren {
   AuthenticatedForestOwnerIdRoute: typeof AuthenticatedForestOwnerIdRoute
+  AuthenticatedForestIndexRoute: typeof AuthenticatedForestIndexRoute
 }
 
 const AuthenticatedForestRouteChildren: AuthenticatedForestRouteChildren = {
   AuthenticatedForestOwnerIdRoute: AuthenticatedForestOwnerIdRoute,
+  AuthenticatedForestIndexRoute: AuthenticatedForestIndexRoute,
 }
 
 const AuthenticatedForestRouteWithChildren =
@@ -315,10 +353,12 @@ const AuthenticatedForestRouteWithChildren =
 
 interface AuthenticatedFriendsRouteChildren {
   AuthenticatedFriendsAddRoute: typeof AuthenticatedFriendsAddRoute
+  AuthenticatedFriendsIndexRoute: typeof AuthenticatedFriendsIndexRoute
 }
 
 const AuthenticatedFriendsRouteChildren: AuthenticatedFriendsRouteChildren = {
   AuthenticatedFriendsAddRoute: AuthenticatedFriendsAddRoute,
+  AuthenticatedFriendsIndexRoute: AuthenticatedFriendsIndexRoute,
 }
 
 const AuthenticatedFriendsRouteWithChildren =
@@ -371,13 +411,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

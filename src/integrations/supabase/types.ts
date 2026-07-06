@@ -380,7 +380,7 @@ export type Database = {
       create_habit_with_auto_tree: {
         Args: {
           _cadence: Database["public"]["Enums"]["habit_cadence"]
-          _description: string
+          _description?: string
           _name: string
           _start_date: string
           _target: number
