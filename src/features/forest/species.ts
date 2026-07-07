@@ -1,42 +1,84 @@
-// Species visual registry. GLB asset slots are placeholders for future swap-in.
-// Until a GLB exists, the renderer falls back to a procedural low-poly tree
-// using the trunk/foliage palette below.
+// Species visual registry backed by Quaternius Stylized Nature MegaKit GLBs
+// (CC0). See public/models/ATTRIBUTION.md. We map each Growve species to a
+// source model and apply per-species foliage tint / crown proportions so each
+// remains visually distinct.
 
 export type SpeciesVisual = {
   slug: string;
-  trunkColor: string;
-  foliageColor: string;
-  foliageShape: "cone" | "sphere" | "ovoid";
-  trunkHeight: number;   // base, multiplied by tree scale
-  trunkRadius: number;
-  foliageRadius: number;
-  foliageHeight: number;
-  /** Future: path to a Draco/KTX2-compressed GLB. null → use procedural mesh. */
-  glbUrl: string | null;
+  /** URL of the GLB inside public/models. */
+  glbUrl: string;
+  /** Optional secondary LOD (simpler model) for far distances. */
+  glbUrlFar?: string;
+  /** Uniform mesh scale multiplier. Base pack sits around 1 unit trunks. */
+  scale: number;
+  /** Optional multiplicative colour applied to the foliage material. */
+  foliageTint: string | null;
+  /** Optional multiplicative colour applied to the trunk material. */
+  trunkTint: string | null;
+  /** Human display name. */
+  displayName: string;
 };
 
 const DEFAULT: SpeciesVisual = {
   slug: "default",
-  trunkColor: "#755B45",
-  foliageColor: "#54745B",
-  foliageShape: "cone",
-  trunkHeight: 1.4,
-  trunkRadius: 0.18,
-  foliageRadius: 1.1,
-  foliageHeight: 2.2,
-  glbUrl: null,
+  glbUrl: "/models/NormalTree_1.glb",
+  glbUrlFar: "/models/NormalTree_3.glb",
+  scale: 0.6,
+  foliageTint: null,
+  trunkTint: null,
+  displayName: "Tree",
 };
 
 const REGISTRY: Record<string, SpeciesVisual> = {
-  oak:           { slug: "oak",           trunkColor: "#6B4A2E", foliageColor: "#4F6B47", foliageShape: "sphere", trunkHeight: 1.6, trunkRadius: 0.22, foliageRadius: 1.4, foliageHeight: 1.6, glbUrl: null },
-  pine:          { slug: "pine",          trunkColor: "#5A3F2A", foliageColor: "#2F5A3F", foliageShape: "cone",   trunkHeight: 1.2, trunkRadius: 0.16, foliageRadius: 1.0, foliageHeight: 2.8, glbUrl: null },
-  birch:         { slug: "birch",         trunkColor: "#D9D2C3", foliageColor: "#7E9A6A", foliageShape: "ovoid",  trunkHeight: 1.8, trunkRadius: 0.14, foliageRadius: 0.9, foliageHeight: 2.0, glbUrl: null },
-  willow:        { slug: "willow",        trunkColor: "#6E5A3F", foliageColor: "#8AA176", foliageShape: "sphere", trunkHeight: 1.4, trunkRadius: 0.18, foliageRadius: 1.6, foliageHeight: 1.4, glbUrl: null },
-  "japanese-maple": { slug: "japanese-maple", trunkColor: "#5C3A22", foliageColor: "#A14A3A", foliageShape: "sphere", trunkHeight: 1.2, trunkRadius: 0.16, foliageRadius: 1.2, foliageHeight: 1.4, glbUrl: null },
-  "cherry-blossom": { slug: "cherry-blossom", trunkColor: "#5C3A28", foliageColor: "#F0C2D4", foliageShape: "sphere", trunkHeight: 1.4, trunkRadius: 0.18, foliageRadius: 1.3, foliageHeight: 1.4, glbUrl: null },
+  oak: {
+    slug: "oak", displayName: "Oak",
+    glbUrl: "/models/NormalTree_1.glb",
+    glbUrlFar: "/models/NormalTree_3.glb",
+    scale: 0.7, foliageTint: "#6a8558", trunkTint: null,
+  },
+  pine: {
+    slug: "pine", displayName: "Pine",
+    glbUrl: "/models/PineTree_1.glb",
+    glbUrlFar: "/models/PineTree_3.glb",
+    scale: 0.75, foliageTint: "#3f5f45", trunkTint: null,
+  },
+  birch: {
+    slug: "birch", displayName: "Birch",
+    glbUrl: "/models/BirchTree_1.glb",
+    glbUrlFar: "/models/BirchTree_3.glb",
+    scale: 0.7, foliageTint: "#94ac74", trunkTint: "#e2ddd0",
+  },
+  willow: {
+    slug: "willow", displayName: "Willow",
+    glbUrl: "/models/NormalTree_3.glb",
+    glbUrlFar: "/models/NormalTree_1.glb",
+    scale: 0.8, foliageTint: "#9ab27a", trunkTint: "#7a6247",
+  },
+  "japanese-maple": {
+    slug: "japanese-maple", displayName: "Japanese maple",
+    glbUrl: "/models/MapleTree_1.glb",
+    glbUrlFar: "/models/MapleTree_3.glb",
+    scale: 0.55, foliageTint: "#b04a3a", trunkTint: "#5c3a22",
+  },
+  "cherry-blossom": {
+    slug: "cherry-blossom", displayName: "Cherry blossom",
+    glbUrl: "/models/MapleTree_3.glb",
+    glbUrlFar: "/models/MapleTree_1.glb",
+    scale: 0.65, foliageTint: "#efc2d4", trunkTint: "#5c3a28",
+  },
 };
 
 export function getSpeciesVisual(slug: string | null | undefined): SpeciesVisual {
   if (!slug) return DEFAULT;
   return REGISTRY[slug] ?? DEFAULT;
+}
+
+export function allSpeciesUrls(): string[] {
+  const set = new Set<string>();
+  set.add(DEFAULT.glbUrl); if (DEFAULT.glbUrlFar) set.add(DEFAULT.glbUrlFar);
+  for (const v of Object.values(REGISTRY)) {
+    set.add(v.glbUrl);
+    if (v.glbUrlFar) set.add(v.glbUrlFar);
+  }
+  return Array.from(set);
 }

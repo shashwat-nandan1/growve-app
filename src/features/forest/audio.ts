@@ -1,113 +1,188 @@
 import { Howl, Howler } from "howler";
 
-// Tiny silent placeholder WAV (44 bytes header + 0 samples). Keeps Howl happy
-// without shipping audio assets yet — swap urls below when real audio lands.
-const SILENT_WAV =
-  "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=";
+// Real CC0 audio assets processed for mobile. See public/audio/ATTRIBUTION.md.
+// Each ambient loop has an mp3 fallback for iOS Safari; effects stay ogg.
+const AUDIO_BASE = "/audio";
 
-type Layer = "wind" | "roomTone" | "distantBirds" | "nearbyBirds" | "footsteps" | "leaves" | "chime";
+const RUSTLE_COUNT = 20;
 
-const SOURCES: Record<Layer, { url: string; loop: boolean; vol: number; group: "ambient" | "effects" }> = {
-  wind:         { url: SILENT_WAV, loop: true,  vol: 0.5, group: "ambient" },
-  roomTone:     { url: SILENT_WAV, loop: true,  vol: 0.4, group: "ambient" },
-  distantBirds: { url: SILENT_WAV, loop: true,  vol: 0.3, group: "ambient" },
-  nearbyBirds:  { url: SILENT_WAV, loop: false, vol: 0.5, group: "effects" },
-  footsteps:    { url: SILENT_WAV, loop: true,  vol: 0.4, group: "effects" },
-  leaves:       { url: SILENT_WAV, loop: false, vol: 0.4, group: "effects" },
-  chime:        { url: SILENT_WAV, loop: false, vol: 0.6, group: "effects" },
-};
+type AmbientKey = "forest" | "birdsWind";
 
 class AudioManager {
-  private layers: Partial<Record<Layer, Howl>> = {};
+  private ambient: Partial<Record<AmbientKey, Howl>> = {};
+  private bell: Howl | null = null;
+  private steps: Howl[] = [];
+  private rustles: Howl[] = [];
   private started = false;
   private muted = true;
-  private ambient = 0.5;
-  private effects = 0.6;
+  private ambientVol = 0.55;
+  private effectsVol = 0.6;
+  private lastStepAt = 0;
+  private lastRustleAt = 0;
   private occasionalTimer: ReturnType<typeof setTimeout> | null = null;
+  private visibilityHandler: (() => void) | null = null;
+  private pausedByVisibility = false;
 
-  /** Lazy-create Howls only after explicit user action. */
   async start(): Promise<void> {
     if (this.started) return;
     this.started = true;
     try {
-      // Resume the underlying AudioContext if browser suspended it.
       const ctx = (Howler as unknown as { ctx?: AudioContext }).ctx;
       if (ctx && ctx.state === "suspended") await ctx.resume();
-    } catch {
-      // ignore
-    }
-    for (const key of Object.keys(SOURCES) as Layer[]) {
-      const s = SOURCES[key];
-      this.layers[key] = new Howl({ src: [s.url], loop: s.loop, volume: 0, html5: false, preload: true });
-    }
-    this.applyVolumes();
+    } catch { /* noop */ }
+
+    this.ambient.forest = new Howl({
+      src: [`${AUDIO_BASE}/forest-ambience.ogg`, `${AUDIO_BASE}/forest-ambience.mp3`],
+      loop: true, volume: 0, html5: false, preload: true,
+    });
+    this.ambient.birdsWind = new Howl({
+      src: [`${AUDIO_BASE}/birds-wind.ogg`, `${AUDIO_BASE}/birds-wind.mp3`],
+      loop: true, volume: 0, html5: false, preload: true,
+    });
+    this.bell = new Howl({
+      src: [`${AUDIO_BASE}/bell.ogg`, `${AUDIO_BASE}/bell.mp3`],
+      loop: false, volume: 0.7, html5: false, preload: true,
+    });
+    this.steps = [
+      new Howl({ src: [`${AUDIO_BASE}/step-leaves-1.ogg`], volume: 0.55, preload: true }),
+      new Howl({ src: [`${AUDIO_BASE}/step-leaves-2.ogg`], volume: 0.55, preload: true }),
+      new Howl({ src: [`${AUDIO_BASE}/step-gravel.ogg`],   volume: 0.45, preload: true }),
+    ];
+    this.rustles = Array.from({ length: RUSTLE_COUNT }, (_, i) => {
+      const n = String(i + 1).padStart(2, "0");
+      return new Howl({ src: [`${AUDIO_BASE}/rustle${n}.ogg`], volume: 0.5, preload: false });
+    });
+
     this.playAmbient();
     this.scheduleOccasional();
+
+    if (typeof document !== "undefined" && !this.visibilityHandler) {
+      this.visibilityHandler = () => {
+        if (document.hidden) {
+          this.pausedByVisibility = true;
+          this.fadeAmbient(0, 300);
+        } else if (this.pausedByVisibility) {
+          this.pausedByVisibility = false;
+          this.fadeAmbient(1, 800);
+        }
+      };
+      document.addEventListener("visibilitychange", this.visibilityHandler);
+    }
   }
 
   private playAmbient(): void {
-    (["wind", "roomTone", "distantBirds"] as Layer[]).forEach((l) => {
-      const h = this.layers[l];
-      if (!h) return;
+    for (const k of Object.keys(this.ambient) as AmbientKey[]) {
+      const h = this.ambient[k];
+      if (!h) continue;
       if (!h.playing()) h.play();
-      h.fade(h.volume(), this.layerTarget(l), 1200);
-    });
+      h.fade(h.volume(), this.ambientTarget(k), 1400);
+    }
   }
 
-  private layerTarget(layer: Layer): number {
-    if (this.muted) return 0;
-    const base = SOURCES[layer].vol;
-    const group = SOURCES[layer].group === "ambient" ? this.ambient : this.effects;
-    return base * group;
+  private ambientTarget(k: AmbientKey): number {
+    if (this.muted || this.pausedByVisibility) return 0;
+    const base = k === "forest" ? 0.55 : 0.4;
+    return base * this.ambientVol;
   }
 
-  private applyVolumes(): void {
-    for (const key of Object.keys(this.layers) as Layer[]) {
-      const h = this.layers[key];
-      if (h) h.volume(this.layerTarget(key));
+  private fadeAmbient(mult: number, ms: number): void {
+    for (const k of Object.keys(this.ambient) as AmbientKey[]) {
+      const h = this.ambient[k];
+      if (!h) continue;
+      const target = this.ambientTarget(k) * mult;
+      h.fade(h.volume(), target, ms);
     }
   }
 
   private scheduleOccasional(): void {
     if (this.occasionalTimer) clearTimeout(this.occasionalTimer);
-    const next = 12000 + Math.random() * 24000;
+    const next = 8000 + Math.random() * 18000;
     this.occasionalTimer = setTimeout(() => {
-      if (!this.muted) this.play("nearbyBirds");
+      if (!this.muted && !this.pausedByVisibility) this.playRustle(0.7);
       this.scheduleOccasional();
     }, next);
   }
 
   setMuted(m: boolean): void {
     this.muted = m;
-    this.applyVolumes();
+    this.fadeAmbient(1, 400);
   }
-  setAmbient(v: number): void { this.ambient = v; this.applyVolumes(); }
-  setEffects(v: number): void { this.effects = v; this.applyVolumes(); }
+  setAmbientVolume(v: number): void { this.ambientVol = v; this.fadeAmbient(1, 200); }
+  setEffectsVolume(v: number): void { this.effectsVol = v; }
 
-  play(layer: Layer): void {
-    const h = this.layers[layer];
-    if (!h || this.muted) return;
-    h.volume(this.layerTarget(layer));
+  /** Called from the walk controller with current planar speed (units/sec). */
+  onMotion(speed: number, delta: number): void {
+    if (this.muted || speed < 0.3 || this.steps.length === 0) return;
+    // Cadence proportional to walk speed. Roughly one step per 0.55m at 2 u/s.
+    const interval = Math.max(0.35, 1.1 / Math.max(speed, 0.6));
+    this.lastStepAt += delta;
+    if (this.lastStepAt >= interval) {
+      this.lastStepAt = 0;
+      const h = this.steps[Math.floor(Math.random() * this.steps.length)];
+      // Slight pitch variation for naturalism.
+      const rate = 0.9 + Math.random() * 0.25;
+      try { h.rate(rate); } catch { /* noop */ }
+      h.volume(0.35 * this.effectsVol);
+      h.play();
+    }
+    // Occasional foliage rustle when moving.
+    this.lastRustleAt += delta;
+    if (speed > 0.8 && this.lastRustleAt > 4 + Math.random() * 6) {
+      this.lastRustleAt = 0;
+      this.playRustle(0.35);
+    }
+  }
+
+  playRustle(volumeMult = 0.5): void {
+    if (this.muted || this.rustles.length === 0) return;
+    const h = this.rustles[Math.floor(Math.random() * this.rustles.length)];
+    try { h.stereo((Math.random() - 0.5) * 0.9); } catch { /* noop */ }
+    h.volume(volumeMult * this.effectsVol);
     h.play();
   }
 
-  setFootsteps(active: boolean): void {
-    const h = this.layers.footsteps;
-    if (!h) return;
-    if (active && !h.playing() && !this.muted) h.play();
-    h.fade(h.volume(), active ? this.layerTarget("footsteps") : 0, 600);
+  /** Soft tend chime — deliberately restrained, not a game reward. */
+  playTendBell(): void {
+    // Bell should play on tend regardless of walk-mode mute; only silence if
+    // the user disabled sound globally.
+    if (!this.bell) {
+      // Lazy-mount just the bell without booting ambient layers.
+      this.bell = new Howl({
+        src: [`${AUDIO_BASE}/bell.ogg`, `${AUDIO_BASE}/bell.mp3`],
+        loop: false, volume: 0.55, preload: true,
+      });
+    }
+    try {
+      // Unlock audio context if it's suspended (first user gesture).
+      const ctx = (Howler as unknown as { ctx?: AudioContext }).ctx;
+      if (ctx && ctx.state === "suspended") ctx.resume().catch(() => {});
+    } catch { /* noop */ }
+    this.bell.volume(0.55);
+    this.bell.play();
   }
 
-  /** Tear down everything — call on unmount. */
+  /** Full teardown — call on unmount from the immersive route. */
   dispose(): void {
     if (this.occasionalTimer) clearTimeout(this.occasionalTimer);
     this.occasionalTimer = null;
-    for (const key of Object.keys(this.layers) as Layer[]) {
-      const h = this.layers[key];
-      try { h?.stop(); h?.unload(); } catch { /* noop */ }
+    if (this.visibilityHandler && typeof document !== "undefined") {
+      document.removeEventListener("visibilitychange", this.visibilityHandler);
+      this.visibilityHandler = null;
     }
-    this.layers = {};
+    const all: Howl[] = [
+      ...(Object.values(this.ambient).filter(Boolean) as Howl[]),
+      ...this.steps,
+      ...this.rustles,
+    ];
+    for (const h of all) {
+      try { h.stop(); h.unload(); } catch { /* noop */ }
+    }
+    this.ambient = {};
+    this.steps = [];
+    this.rustles = [];
+    // Keep bell alive for tend feedback outside the forest.
     this.started = false;
+    this.muted = true;
   }
 }
 
