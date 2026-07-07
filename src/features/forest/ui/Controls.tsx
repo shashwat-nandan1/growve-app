@@ -108,7 +108,7 @@ function Joystick({ visible }: { visible: boolean }) {
     let dx = e.clientX - active.current.cx;
     let dy = e.clientY - active.current.cy;
     const R = 44;
-    const d = Math.hypot(dx, dz(dy)); // helper below
+    const d = Math.hypot(dx, dy);
     if (d > R) { dx = (dx / d) * R; dy = (dy / d) * R; }
     setStick(dx, dy);
     e.stopPropagation();
@@ -144,4 +144,4 @@ function Joystick({ visible }: { visible: boolean }) {
   );
 }
 
-function dz(y: number) { return y; }
+
