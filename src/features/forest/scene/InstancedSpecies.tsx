@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame, type ThreeEvent } from "@react-three/fiber";
+import { useGLTF } from "@react-three/drei";
 import type { ForestTree } from "../types";
-import { getSpeciesVisual } from "../species";
+import { getSpeciesVisual, allSpeciesUrls } from "../species";
 import { ageScale } from "../growth";
 import { useForestStore } from "../store";
 
@@ -10,10 +11,54 @@ type Props = {
   trees: ForestTree[];
   quality: "low" | "high";
   windEnabled: boolean;
+  /** Camera position for LOD / culling decisions. */
+  cameraRef?: { current: THREE.Camera | null };
 };
 
-// Render one InstancedMesh pair (trunk + foliage) per species.
-export function InstancedSpecies({ trees, quality, windEnabled }: Props) {
+// Preload every species GLB up front so switching species doesn't stutter.
+allSpeciesUrls().forEach((u) => useGLTF.preload(u));
+
+/**
+ * Extracts trunk + foliage meshes from a Quaternius stylized-nature GLB.
+ * Trunks tend to be brown-brushed materials, foliage is green/tinted — we
+ * classify by material colour luminance in the green channel.
+ */
+function extractParts(scene: THREE.Object3D): {
+  trunk: { geometry: THREE.BufferGeometry; material: THREE.MeshStandardMaterial } | null;
+  foliage: { geometry: THREE.BufferGeometry; material: THREE.MeshStandardMaterial } | null;
+} {
+  let trunk: { geometry: THREE.BufferGeometry; material: THREE.MeshStandardMaterial } | null = null;
+  let foliage: { geometry: THREE.BufferGeometry; material: THREE.MeshStandardMaterial } | null = null;
+  scene.updateMatrixWorld(true);
+  scene.traverse((child) => {
+    const m = child as THREE.Mesh;
+    if (!m.isMesh || !m.geometry) return;
+    const mat = m.material as THREE.MeshStandardMaterial | THREE.MeshStandardMaterial[];
+    const base = Array.isArray(mat) ? mat[0] : mat;
+    const col = (base as THREE.MeshStandardMaterial).color ?? new THREE.Color("#888");
+    // Bake local transforms into geometry so instance matrices apply cleanly.
+    const geom = m.geometry.clone();
+    geom.applyMatrix4(m.matrixWorld);
+    const isFoliage = col.g > col.r && col.g > col.b * 0.9;
+    const material = (base as THREE.MeshStandardMaterial).clone();
+    material.flatShading = false;
+    material.roughness = 0.9;
+    if (isFoliage) {
+      if (foliage) {
+        // Merge additional foliage geometries by simple concat is not trivial —
+        // fall back to first one, which covers all packed models we ship.
+        return;
+      }
+      foliage = { geometry: geom, material };
+    } else {
+      if (trunk) return;
+      trunk = { geometry: geom, material };
+    }
+  });
+  return { trunk, foliage };
+}
+
+export function InstancedSpecies({ trees, quality, windEnabled, cameraRef }: Props) {
   const groups = useMemo(() => {
     const map = new Map<string, ForestTree[]>();
     for (const t of trees) {
@@ -27,101 +72,134 @@ export function InstancedSpecies({ trees, quality, windEnabled }: Props) {
   return (
     <>
       {groups.map(([slug, list]) => (
-        <SpeciesInstances key={slug} slug={slug} trees={list} quality={quality} windEnabled={windEnabled} />
+        <SpeciesInstances key={slug} slug={slug} trees={list} quality={quality} windEnabled={windEnabled} cameraRef={cameraRef} />
       ))}
     </>
   );
 }
 
 function SpeciesInstances({
-  slug, trees, quality, windEnabled,
-}: { slug: string; trees: ForestTree[]; quality: "low" | "high"; windEnabled: boolean }) {
+  slug, trees, quality, windEnabled, cameraRef,
+}: { slug: string; trees: ForestTree[]; quality: "low" | "high"; windEnabled: boolean; cameraRef?: { current: THREE.Camera | null } }) {
   const visual = getSpeciesVisual(slug);
-  const trunkRef = useRef<THREE.InstancedMesh>(null!);
-  const foliageRef = useRef<THREE.InstancedMesh>(null!);
+  const gltfNear = useGLTF(visual.glbUrl) as unknown as { scene: THREE.Object3D };
+  const gltfFar  = useGLTF(visual.glbUrlFar ?? visual.glbUrl) as unknown as { scene: THREE.Object3D };
+
+  const partsNear = useMemo(() => extractParts(gltfNear.scene.clone(true)), [gltfNear]);
+  const partsFar  = useMemo(() => extractParts(gltfFar.scene.clone(true)), [gltfFar]);
+
+  // Tint materials per species. Cloned already in extractParts.
+  useEffect(() => {
+    for (const parts of [partsNear, partsFar]) {
+      if (parts.foliage && visual.foliageTint) parts.foliage.material.color.set(visual.foliageTint);
+      if (parts.trunk && visual.trunkTint)     parts.trunk.material.color.set(visual.trunkTint);
+    }
+  }, [partsNear, partsFar, visual.foliageTint, visual.trunkTint]);
+
+  // LOD partitioning by distance to camera. Trees inside NEAR_DIST render
+  // as `partsNear`; the rest render as `partsFar` (simpler geometry). Any
+  // tree beyond FAR_CULL is culled entirely — the fog hides the transition.
+  const NEAR_DIST = quality === "low" ? 14 : 22;
+  const FAR_CULL  = quality === "low" ? 55 : 90;
+
+  const partitionRef = useRef<{ near: number[]; far: number[] }>({ near: trees.map((_, i) => i), far: [] });
+  const lastCamKey = useRef<string>("");
+
+  const trunkNearRef = useRef<THREE.InstancedMesh>(null);
+  const foliageNearRef = useRef<THREE.InstancedMesh>(null);
+  const trunkFarRef = useRef<THREE.InstancedMesh>(null);
+  const foliageFarRef = useRef<THREE.InstancedMesh>(null);
+
   const tmpObj = useMemo(() => new THREE.Object3D(), []);
-  const tmpColor = useMemo(() => new THREE.Color(), []);
   const selected = useForestStore((s) => s.selected);
   const setSelected = useForestStore((s) => s.setSelected);
 
-  // Foliage geometry per species shape
-  const foliageGeometry = useMemo(() => {
-    const detail = quality === "low" ? 0 : 1;
-    if (visual.foliageShape === "cone") return new THREE.ConeGeometry(visual.foliageRadius, visual.foliageHeight, quality === "low" ? 6 : 8);
-    if (visual.foliageShape === "ovoid") {
-      const g = new THREE.SphereGeometry(visual.foliageRadius, quality === "low" ? 6 : 10, quality === "low" ? 4 : 8);
-      g.scale(1, visual.foliageHeight / (visual.foliageRadius * 2), 1);
-      return g;
+  const nowRef = useRef(Date.now());
+
+  const writeMatrices = (near: number[], far: number[]) => {
+    const meshes = [
+      { mesh: trunkNearRef.current, indices: near, isFoliage: false },
+      { mesh: foliageNearRef.current, indices: near, isFoliage: true },
+      { mesh: trunkFarRef.current, indices: far, isFoliage: false },
+      { mesh: foliageFarRef.current, indices: far, isFoliage: true },
+    ];
+    for (const { mesh, indices, isFoliage } of meshes) {
+      if (!mesh) continue;
+      mesh.count = indices.length;
+      for (let i = 0; i < indices.length; i++) {
+        const t = trees[indices[i]];
+        const s = ageScale(t.planted_at, t.scale || 1, nowRef.current) * visual.scale;
+        tmpObj.position.set(t.position_x, 0, t.position_z);
+        tmpObj.rotation.set(0, t.rotation_y, 0);
+        tmpObj.scale.setScalar(s);
+        if (isFoliage && selected?.id === t.id) {
+          // subtle emphasise by slightly larger scale
+          tmpObj.scale.setScalar(s * 1.05);
+        }
+        tmpObj.updateMatrix();
+        mesh.setMatrixAt(i, tmpObj.matrix);
+      }
+      mesh.instanceMatrix.needsUpdate = true;
+      mesh.computeBoundingSphere();
     }
-    return new THREE.IcosahedronGeometry(visual.foliageRadius, detail);
-  }, [visual, quality]);
+  };
 
-  const trunkGeometry = useMemo(
-    () => new THREE.CylinderGeometry(visual.trunkRadius * 0.8, visual.trunkRadius, visual.trunkHeight, quality === "low" ? 5 : 7),
-    [visual, quality],
-  );
-
-  // Initial matrix + color writes
+  // Initial full write.
   useEffect(() => {
-    if (!trunkRef.current || !foliageRef.current) return;
-    const now = Date.now();
+    nowRef.current = Date.now();
+    partitionRef.current = { near: trees.map((_, i) => i), far: [] };
+    writeMatrices(partitionRef.current.near, partitionRef.current.far);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trees, visual]);
+
+  // Repartition periodically as the camera moves. Throttle to every ~15 frames.
+  const frameSkip = useRef(0);
+  useFrame(() => {
+    if (!cameraRef?.current) return;
+    frameSkip.current += 1;
+    if (frameSkip.current < 15) return;
+    frameSkip.current = 0;
+    const cam = cameraRef.current;
+    const key = `${Math.round(cam.position.x)}|${Math.round(cam.position.z)}`;
+    if (key === lastCamKey.current) return;
+    lastCamKey.current = key;
+    const near: number[] = [];
+    const far: number[] = [];
     for (let i = 0; i < trees.length; i++) {
       const t = trees[i];
-      const s = ageScale(t.planted_at, t.scale || 1, now);
-
-      // trunk
-      tmpObj.position.set(t.position_x, (visual.trunkHeight * s) / 2, t.position_z);
-      tmpObj.rotation.set(0, t.rotation_y, 0);
-      tmpObj.scale.set(s, s, s);
-      tmpObj.updateMatrix();
-      trunkRef.current.setMatrixAt(i, tmpObj.matrix);
-      trunkRef.current.setColorAt?.(i, tmpColor.set(visual.trunkColor));
-
-      // foliage
-      tmpObj.position.set(
-        t.position_x,
-        visual.trunkHeight * s + (visual.foliageHeight * s) / 2 - 0.1,
-        t.position_z,
-      );
-      tmpObj.updateMatrix();
-      foliageRef.current.setMatrixAt(i, tmpObj.matrix);
-      foliageRef.current.setColorAt?.(i, tmpColor.set(visual.foliageColor));
+      const dx = t.position_x - cam.position.x;
+      const dz = t.position_z - cam.position.z;
+      const d = Math.hypot(dx, dz);
+      if (d > FAR_CULL) continue;
+      if (d < NEAR_DIST) near.push(i); else far.push(i);
     }
-    trunkRef.current.instanceMatrix.needsUpdate = true;
-    foliageRef.current.instanceMatrix.needsUpdate = true;
-    if (trunkRef.current.instanceColor) trunkRef.current.instanceColor.needsUpdate = true;
-    if (foliageRef.current.instanceColor) foliageRef.current.instanceColor.needsUpdate = true;
-    trunkRef.current.computeBoundingSphere();
-    foliageRef.current.computeBoundingSphere();
-  }, [trees, visual, tmpObj, tmpColor]);
+    partitionRef.current = { near, far };
+    writeMatrices(near, far);
+  });
 
-  // Highlight selected via color tint (subtle, no game outline)
-  useEffect(() => {
-    const mesh = foliageRef.current;
-    if (!mesh) return;
-    for (let i = 0; i < trees.length; i++) {
-      const t = trees[i];
-      const isSel = selected?.id === t.id;
-      tmpColor.set(visual.foliageColor);
-      if (isSel) tmpColor.lerp(new THREE.Color("#ffffff"), 0.18);
-      mesh.setColorAt?.(i, tmpColor);
-    }
-    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
-  }, [selected, trees, visual, tmpColor]);
-
-  // Subtle wind sway on the foliage instanced mesh as a whole.
+  // Gentle vertex-shader-free sway: rotate the foliage InstancedMeshes as a
+  // whole around Y with a tiny angle. Since foliage is packed near its own
+  // origin after transform bake, this looks like a subtle canopy motion.
   useFrame((state) => {
-    if (!windEnabled || !foliageRef.current) return;
+    if (!windEnabled) return;
     const t = state.clock.elapsedTime;
-    foliageRef.current.rotation.z = Math.sin(t * 0.4) * 0.012;
-    foliageRef.current.rotation.x = Math.cos(t * 0.3) * 0.008;
+    for (const m of [foliageNearRef.current, foliageFarRef.current]) {
+      if (!m) continue;
+      m.rotation.z = Math.sin(t * 0.4) * 0.008;
+      m.rotation.x = Math.cos(t * 0.3) * 0.006;
+    }
   });
 
   const onPick = (ev: ThreeEvent<MouseEvent>) => {
     ev.stopPropagation();
     const id = ev.instanceId;
     if (id == null) return;
-    const tree = trees[id];
+    const idxList = ev.eventObject.userData.isFar
+      ? partitionRef.current.far
+      : partitionRef.current.near;
+    const treeIdx = idxList[id];
+    if (treeIdx == null) return;
+    const tree = trees[treeIdx];
     if (tree) setSelected(tree);
   };
 
@@ -129,23 +207,42 @@ function SpeciesInstances({
 
   return (
     <group>
-      <instancedMesh
-        ref={trunkRef}
-        args={[trunkGeometry, undefined, trees.length]}
-        castShadow={quality === "high"}
-        receiveShadow
-        onClick={onPick}
-      >
-        <meshStandardMaterial vertexColors roughness={1} />
-      </instancedMesh>
-      <instancedMesh
-        ref={foliageRef}
-        args={[foliageGeometry, undefined, trees.length]}
-        castShadow={quality === "high"}
-        onClick={onPick}
-      >
-        <meshStandardMaterial vertexColors roughness={0.85} flatShading />
-      </instancedMesh>
+      {partsNear.trunk && (
+        <instancedMesh
+          ref={trunkNearRef}
+          args={[partsNear.trunk.geometry, partsNear.trunk.material, trees.length]}
+          castShadow={quality === "high"}
+          receiveShadow
+          onPointerDown={onPick}
+          userData={{ isFar: false }}
+        />
+      )}
+      {partsNear.foliage && (
+        <instancedMesh
+          ref={foliageNearRef}
+          args={[partsNear.foliage.geometry, partsNear.foliage.material, trees.length]}
+          castShadow={quality === "high"}
+          onPointerDown={onPick}
+          userData={{ isFar: false }}
+        />
+      )}
+      {partsFar.trunk && (
+        <instancedMesh
+          ref={trunkFarRef}
+          args={[partsFar.trunk.geometry, partsFar.trunk.material, trees.length]}
+          receiveShadow
+          onPointerDown={onPick}
+          userData={{ isFar: true }}
+        />
+      )}
+      {partsFar.foliage && (
+        <instancedMesh
+          ref={foliageFarRef}
+          args={[partsFar.foliage.geometry, partsFar.foliage.material, trees.length]}
+          onPointerDown={onPick}
+          userData={{ isFar: true }}
+        />
+      )}
     </group>
   );
 }

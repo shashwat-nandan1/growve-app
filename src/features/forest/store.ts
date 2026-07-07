@@ -6,8 +6,8 @@ export type ForestMode = "overview" | "walk";
 type ForestState = {
   mode: ForestMode;
   selected: ForestTree | null;
-  walkPlaying: boolean;
-  walkProgress: number; // 0..1 along path
+  walkPlaying: boolean;       // Auto-wander enabled?
+  walkProgress: number;
   soundOn: boolean;
   ambientVolume: number;
   effectsVolume: number;
@@ -27,10 +27,10 @@ type ForestState = {
 export const useForestStore = create<ForestState>((set) => ({
   mode: "overview",
   selected: null,
-  walkPlaying: true,
+  walkPlaying: false, // Auto-wander is opt-in; free-roam is the default.
   walkProgress: 0,
   soundOn: false,
-  ambientVolume: 0.5,
+  ambientVolume: 0.55,
   effectsVolume: 0.6,
   quality: "auto",
   uiHidden: false,
@@ -45,6 +45,7 @@ export const useForestStore = create<ForestState>((set) => ({
   setUiHidden: (uiHidden) => set({ uiHidden }),
 }));
 
-// Module-level shared mutable look-offset ref (yaw/pitch added by drag).
-// Kept outside React state to avoid per-frame re-renders.
+// Shared mutable refs for high-frequency input state. Kept outside React so
+// per-frame updates never trigger re-renders.
 export const lookRef = { yaw: 0, pitch: 0 };
+export const moveRef = { x: 0, z: 0 }; // −1..1 joystick / keyboard vector (local space)
