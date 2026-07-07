@@ -98,16 +98,15 @@ export function ForestWalk({
       const dz = tmpPos.z - camera.position.z;
       const d = Math.hypot(dx, dz);
       if (d > 0.001) {
-        const step = Math.min(d, MAX_SPEED * 0.6 * delta);
-        camera.position.x += (dx / d) * step;
-        camera.position.z += (dz / d) * step;
+      const stepDist = Math.min(d, MAX_SPEED * 0.6 * delta);
+        camera.position.x += (dx / d) * stepDist;
+        camera.position.z += (dz / d) * stepDist;
       }
       vel.current.x = 0;
       vel.current.z = 0;
-      // Look along path when auto-walking (add user yaw offset).
       const baseYaw = Math.atan2(tmpAhead.x - tmpPos.x, tmpAhead.z - tmpPos.z);
       applyLook(camera, baseYaw + yaw, pitch, tmpTarget);
-      forestAudio.onMotion(step > 0 ? MAX_SPEED * 0.6 : 0, delta);
+      forestAudio.onMotion(MAX_SPEED * 0.6, delta);
       return;
     }
 
